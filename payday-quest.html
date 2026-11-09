@@ -243,6 +243,10 @@ ul.lessons { margin: 6px 0 0; padding-left: 20px; display: flex; flex-direction:
 .tag { display: inline-block; font-size: 13px; font-weight: 600; padding: 2px 10px; border-radius: 99px; background: #fff; color: var(--grape); }
 @media (prefers-reduced-motion: reduce) { .shake, .pulse, .speech .more, #ticker div { animation: none; } .bar i, .notif { transition: none; } }
 [hidden] { display: none !important; }
+.trk { position: relative; }
+.trk .cdbar { position: absolute; left: 8px; right: 8px; bottom: 2px; height: 4px; border-radius: 4px; background: rgba(15,27,61,.12); overflow: hidden; }
+.trk .cdbar i { display: block; height: 100%; border-radius: 4px; background: #1e7bff; transition: width 1s linear; }
+.trk.hurry .cdbar i { background: #d4243a; }
 .trk.focus { box-shadow: inset 0 0 0 2.5px #1e7bff; }
 .trk.hurry { animation: hurry .6s ease-in-out infinite alternate; }
 @keyframes hurry { to { background: #ffd2d8; } }
@@ -337,7 +341,8 @@ function loadImages() {
   imgTotal = keys.length;
   return Promise.all(keys.map((k) => new Promise((res) => { const i = new Image(); i.decoding = "async"; i.onload = i.onerror = () => { imgDone++; const b = document.querySelector(".loadbar i"); if (b) b.style.width = (imgDone / imgTotal * 100) + "%"; res(); }; i.src = imgSrc(k); IMG[k] = i; })));
 }
-const CFG = { monthSec: 180, days: 30 };       // 1 month = 3 real minutes, 30 in-game days
+const CFG = { monthSec: 180, days: 15 };  // 15 game days (12 s each) — calmer; the total is never shown to the player
+const MEALS_PER_DAY = 3.6;              // each game day stands for ~2 real days of eating       // 1 month = 3 real minutes, 30 in-game days
 const DAY_SEC = () => CFG.monthSec / CFG.days;
 const ACC = { wallet: { e: "👛", n: "บัญชีเงินเดือน" }, left: { e: "💰", n: "เงินเหลือ" }, save: { e: "🐷", n: "เงินเก็บ" } };
 const SPECIES = {
@@ -635,7 +640,8 @@ function draw() {
   ctx.fillStyle = "#87e377"; ctx.fillRect(0, 0, w, h);
   if (mapCanvas) {
     const sx = Math.max(0, camX), sy = Math.max(0, camY), ox = sx - camX, oy = sy - camY;
-    ctx.drawImage(mapCanvas, sx * MDPR, sy * MDPR, (w - ox) * MDPR, (h - oy) * MDPR, ox, oy, w - ox, h - oy);
+    const cw = Math.min(w - ox, MW * TS - sx), ch = Math.min(h - oy, MH * TS - sy); // never read past the map edge (that stretched the picture)
+    if (cw > 0 && ch > 0) ctx.drawImage(mapCanvas, sx * MDPR, sy * MDPR, cw * MDPR, ch * MDPR, ox, oy, cw, ch);
   }
   const time = performance.now() / 1000;
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -648,7 +654,7 @@ function draw() {
   spr.sort((a, b) => a.y - b.y);
   const [hx, hy] = scr(P.fx, P.fy);
   for (const o of spr) {
-    if (o.hero) { ctx.fillStyle = "rgba(0,40,0,.22)"; ctx.beginPath(); ctx.ellipse(hx, hy + 13, 11, 4, 0, 0, 7); ctx.fill(); drawHero(hx, hy); continue; }
+    if (o.hero) { ctx.fillStyle = "rgba(0,40,0,.22)"; ctx.beginPath(); ctx.ellipse(hx, hy + 13, 11, 4, 0, 0, 7); ctx.fill(); drawHero(hx, hy); drawHeroTimer(hx, hy); continue; }
     if (o.wild) {
       const m = o.wild, [sx, sy] = scr(m.x, m.y); if (sx < -40 || sy < -60 || sx > w + 40 || sy > h + 40) continue;
       ctx.fillStyle = "rgba(0,40,0,.22)"; ctx.beginPath(); ctx.ellipse(sx, sy + 12, 11, 4, 0, 0, 7); ctx.fill();
@@ -731,6 +737,18 @@ function draw() {
     ctx.lineWidth = 3; ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.strokeText(f.t, hx, hy - 34 - k * 34 - f.o * 18); ctx.fillStyle = f.c; ctx.fillText(f.t, hx, hy - 34 - k * 34 - f.o * 18);
     ctx.globalAlpha = 1;
   }
+}
+// small countdown bar over the player's head while a meet-up timer is running
+function drawHeroTimer(x, y) {
+  if (!S) return;
+  const runs = S.invites.filter((v) => v.status === "accepted" && v.deadline != null);
+  if (!runs.length) return;
+  const v = runs.reduce((a, b) => (cdLeft(a) < cdLeft(b) ? a : b)), left = cdLeft(v), frac = clamp(left / (v.cdTotal || 30), 0, 1);
+  const bw = 58, bx = x - bw / 2, by = y + 34, hot = left <= 10; // under the feet: money pop-ups float above the head
+  ctx.fillStyle = "rgba(15,27,61,.78)"; roundRect(ctx, bx - 3, by - 13, bw + 6, 21, 8); ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,.25)"; roundRect(ctx, bx, by + 3, bw, 3, 1.5); ctx.fill();
+  ctx.fillStyle = hot ? "#ff5a6e" : "#5fd0ff"; roundRect(ctx, bx, by + 3, Math.max(2, bw * frac), 3, 1.5); ctx.fill();
+  ctx.fillStyle = "#fff"; ctx.font = `700 11px Prompt, ${EMO}`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("⏳ " + mmss(left), x, by - 4);
 }
 function drawHero(x, y) {
   const im = img("c-player");
@@ -861,9 +879,12 @@ function advance(dt) {
 }
 function planMeals() {
   S.meals = [];
-  if (Math.random() < 0.55) S.meals.push({ h: rand(7, 8.5), k: "เช้า" });
-  S.meals.push({ h: rand(11.8, 12.8), k: "กลางวัน" });
-  S.meals.push({ h: rand(18, 19.5), k: "เย็น" });
+  if (Math.random() < 0.6) S.meals.push({ h: rand(7, 8), k: "เช้า" });
+  if (Math.random() < 0.35) S.meals.push({ h: rand(9.5, 10.3), k: "สาย" });
+  S.meals.push({ h: rand(11.8, 12.6), k: "กลางวัน" });
+  if (Math.random() < 0.4) S.meals.push({ h: rand(14.8, 15.8), k: "บ่าย" });
+  S.meals.push({ h: rand(18, 19), k: "เย็น" });
+  if (Math.random() < 0.25) S.meals.push({ h: rand(20.5, 21.3), k: "ดึก" });
 }
 function finishMeals() { S.meals.forEach((m) => { if (!m.done) { m.done = true; eat(m); } }); }
 function eat(m) {
@@ -876,22 +897,23 @@ function eat(m) {
 }
 function newDay() {
   dailyGrowth();
-  S.mp = clamp(S.mp - 0.4, 0, 100);
+  S.mp = clamp(S.mp - 0.8, 0, 100);
   planMeals();
   S.sched.filter((x) => x.day === S.day).forEach(fire);
   checkOverdue();
-  if (S.day % 5 === 1) refreshBoard();
-  if (S.day % 4 === 1) spawnWild();
+  if (S.day % 3 === 1) refreshBoard();
+  if (S.day % 2 === 1) spawnWild();
   if (S.mp <= 0 && !S.forced.some((f) => f.id === "burnout")) addForced({ id: "burnout", e: "🫠", title: "หมดไฟ! ต้องพักใจ", text: "ความสุขหมดแล้ว ไปห้างพักใจก่อน", to: "mall", cost: Math.round(S.income * 0.1), cat: "fun" });
 }
 function dailyGrowth() {
   for (const m of S.team) {
     const before = m.value;
-    if (m.scam) { m.value *= Math.pow(1.05, 1 / 30); m.mGrow += m.value - before; m.hist.push(m.value); continue; }
+    if (m.scam) { m.value *= Math.pow(1.05, 1 / CFG.days); m.mGrow += m.value - before; m.hist.push(m.value); continue; }
     if (before <= 0) { m.hist.push(0); continue; }
-    let r = m.ret / 100 / 365 + (m.vol / 100 / Math.sqrt(365)) * gauss() * 0.9;
-    const rb = S.rebound.find((x) => x.id === m.id && x.days > 0); if (rb) { r += rb.amt / 60; rb.days--; }
-    const fee = before * m.fee / 100 / 365;
+    const per = 12 * CFG.days; // game days per year
+    let r = m.ret / 100 / per + (m.vol / 100 / Math.sqrt(per)) * gauss() * 0.9;
+    const rb = S.rebound.find((x) => x.id === m.id && x.days > 0); if (rb) { r += rb.amt / (2 * CFG.days); rb.days--; }
+    const fee = before * m.fee / 100 / per;
     m.value = Math.max(0, before * (1 + r) - fee);
     m.mGrow += m.value - before + fee; m.mFee += fee; S.stats.feesPaid += fee;
     m.hist.push(m.value); if (m.hist.length > 200) m.hist.shift();
@@ -915,30 +937,30 @@ function buildSchedule() {
   const util = Math.round(S.salary * rand(0.03, 0.05) * (S.costUp ? 1.5 : 1) / 10) * 10;
   const tel = Math.max(399, Math.round(S.salary * 0.02 / 100) * 100 - 1);
   sc.push({ day: 1, kind: "forced", q: { id: "rent", e: "🏠", title: "ค่าเช่าห้อง", text: "ถึงรอบจ่ายค่าเช่าแล้ว", to: "home", cost: rent, cat: "bills" } });
-  sc.push({ day: rint(5, 9), kind: "forced", q: { id: "util", e: "💡", title: "ค่าน้ำค่าไฟ", text: S.costUp ? "ค่าไฟแพงขึ้นเดือนนี้" : "บิลเดือนนี้มาแล้ว", to: "store", cost: util, cat: "bills" } });
-  sc.push({ day: rint(12, 16), kind: "forced", q: { id: "tel", e: "📶", title: "ค่าโทรศัพท์ + เน็ตบ้าน", text: "ถึงรอบบิลรายเดือน", to: "phone", cost: tel, cat: "bills" } });
+  sc.push({ day: rint(3, 5), kind: "forced", q: { id: "util", e: "💡", title: "ค่าน้ำค่าไฟ", text: S.costUp ? "ค่าไฟแพงขึ้นเดือนนี้" : "บิลเดือนนี้มาแล้ว", to: "store", cost: util, cat: "bills" } });
+  sc.push({ day: rint(6, 8), kind: "forced", q: { id: "tel", e: "📶", title: "ค่าโทรศัพท์ + เน็ตบ้าน", text: "ถึงรอบบิลรายเดือน", to: "phone", cost: tel, cat: "bills" } });
   const nBills = Math.random() < 0.6 ? 1 : 2;
   for (let i = 0; i < nBills; i++) {
     const ev = drawEvent("bill"); if (!ev) break;
     let cost = Math.round(S.income * rand(ev.cost[0], ev.cost[1]));
     const gov = S.cls === "gov" && ev.tag === "health"; if (gov) cost = Math.round(cost * 0.3);
-    sc.push({ day: rint(3, 26), kind: "forced", q: { id: ev.id, e: ev.e, title: ev.name, text: fill(pick(ev.text), ev) + (gov ? " (สวัสดิการช่วยจ่าย)" : ""), to: ev.to, cost, cat: "emerg" } });
+    sc.push({ day: rint(2, 12), kind: "forced", q: { id: ev.id, e: ev.e, title: ev.name, text: fill(pick(ev.text), ev) + (gov ? " (สวัสดิการช่วยจ่าย)" : ""), to: ev.to, cost, cat: "emerg" } });
   }
   const inv = drawEvent("social");
-  if (inv) sc.push({ day: rint(4, 24), kind: "invite", q: { id: inv.id, e: inv.e, title: inv.name, text: fill(pick(inv.text), inv), to: inv.to, cost: Math.round(S.income * rand(inv.cost[0], inv.cost[1])), mp: inv.mp, cat: "fun" } });
-  if (Math.random() < 0.6) { const gd = drawEvent("good"); if (gd) sc.push({ day: rint(6, 27), kind: "good", q: gd }); }
+  if (inv) sc.push({ day: rint(2, 12), kind: "invite", q: { id: inv.id, e: inv.e, title: inv.name, text: fill(pick(inv.text), inv), to: inv.to, cost: Math.round(S.income * rand(inv.cost[0], inv.cost[1])), mp: inv.mp, cat: "fun" } });
+  if (Math.random() < 0.6) { const gd = drawEvent("good"); if (gd) sc.push({ day: rint(3, 14), kind: "good", q: gd }); }
   return sc;
 }
 function fire(x) {
   const q = x.q;
   if (x.kind === "forced") addForced(q);
-  if (x.kind === "invite") { const it = { ...q, due: Math.min(CFG.days, S.day + 6), status: "pending" }; S.invites.push(it); notify({ e: q.e, title: "ชวน: " + q.title, text: `${q.text} · ${baht(q.cost)}`, tab: "inbox", invite: it }); }
+  if (x.kind === "invite") { const it = { ...q, due: Math.min(CFG.days, S.day + 3), status: "pending" }; S.invites.push(it); notify({ e: q.e, title: "ชวน: " + q.title, text: `${q.text} · ${baht(q.cost)}`, tab: "inbox", invite: it }); }
   if (x.kind === "good") { const amt = Math.round(S.income * rand(q.amt[0], q.amt[1])); income(amt, "gift", q.name, q.e); notify({ e: q.e, title: `${q.name} +${baht(amt)}`, text: fill(pick(q.text), q), tab: "wallet" }); Sound.coin(); }
 }
 function addForced(q) {
-  const f = { ...q, due: Math.min(CFG.days, S.day + (q.id === "rent" ? 6 : 6)) };
+  const f = { ...q, due: Math.min(CFG.days, S.day + 4) };
   S.forced.push(f);
-  notify({ e: q.e, title: `ต้องจ่าย: ${q.title} ${baht(q.cost)}`, text: `📍 ${bname(q.to)} · ถึงวันที่ ${f.due}`, tab: "quests", urgent: true });
+  notify({ e: q.e, title: `ต้องจ่าย: ${q.title} ${baht(q.cost)}`, text: `📍 ${bname(q.to)} · ภายใน ${f.due - S.day} วัน`, tab: "quests", urgent: true });
 }
 function chargeAuto(amt) { // overdue bills: salary account → leftover → card
   let rem = amt; const parts = [];
@@ -967,7 +989,7 @@ function refreshBoard() {
   const pickKind = (k) => pool.find((q) => q.kind === k && !out.includes(q));
   const out = []; ["job", "gig", "errand"].forEach((k) => { const q = pickKind(k); if (q) out.push(q); });
   for (const q of pool) { if (out.length >= 5) break; if (!out.includes(q)) out.push(q); }
-  S.board = out.map((q) => ({ ...q, cost: q.costPct ? Math.round(S.salary * q.costPct) : q.cost, payAmt: q.pay ? Math.round(S.salary * q.pay / 10) * 10 : 0, days: q.kind === "job" ? 6 : 4 }));
+  S.board = out.map((q) => ({ ...q, cost: q.costPct ? Math.round(S.salary * q.costPct) : q.cost, payAmt: q.pay ? Math.round(S.salary * q.pay / 10) * 10 : 0, days: q.kind === "job" ? 4 : 3 }));
 }
 function spawnWild() {
   S.wild = S.wild.filter(() => Math.random() < 0.4);
@@ -1072,7 +1094,8 @@ function updateHUD() {
       if (t.kind === "forced") return `<button class="trk forced ${first}" data-i="${i}">${first ? "🧭" : "⚠️"} <span>${esc(o.title)} → ${bname(o.to)}</span><small>${baht(o.cost)} · ${Math.max(0, o.due - S.day)} วัน</small></button>`;
       if (t.kind === "quest") return `<button class="trk quest ${first}" data-i="${i}">${first ? "🧭" : "★"} <span>${esc(o.title)} → ${bname(o.stage === "pickup" ? o.from : o.to)}${o.stage === "pickup" ? " (รับของ)" : ""}</span><small>${Math.max(0, o.due - S.day)} วัน</small></button>`;
       const left = o.deadline != null ? cdLeft(o) : null;
-      return `<button class="trk invite ${first} ${left != null && left <= 10 ? "hurry" : ""}" data-i="${i}">${first ? "🧭" : "♥"} <span>${esc(o.title)} → ${bname(o.to)}</span><small class="cd">${left != null ? "⏳ " + mmss(left) : "ถึงวันที่ " + o.due}</small></button>`;
+      const pctLeft = left != null ? clamp(left / (o.cdTotal || 30) * 100, 0, 100) : 0;
+      return `<button class="trk invite ${first} ${left != null && left <= 10 ? "hurry" : ""}" data-i="${i}">${first ? "🧭" : "♥"} <span>${esc(o.title)} → ${bname(o.to)}</span><small class="cd">${left != null ? "⏳ " + mmss(left) : "เหลือ " + Math.max(0, o.due - S.day) + " วัน"}</small>${left != null ? `<span class="cdbar"><i style="width:${pctLeft}%"></i></span>` : ""}</button>`;
     });
     if (tg.length > 3) rows.push(`<button class="trk forced" data-tab="quests"><span>+ อีก ${tg.length - 3} อย่าง</span></button>`);
     if (tg.length > 1) rows.push(`<div class="trkhint">แตะแถบเพื่อเลือกว่าจะไปไหนก่อน</div>`);
@@ -1267,9 +1290,9 @@ function renderPhone() {
   if (phoneTab === "quests") {
     title = "ภารกิจ";
     body = `<div class="hint ${S.forced.length ? "red" : "blue"}">${S.forced.length ? `⚠️ จ่ายบิลสีแดง ${S.forced.length} อย่างก่อน ถึงรับงานใหม่ได้` : "✅ ไม่มีบิลค้าง ไปรับงานที่ 📋 บอร์ดได้เลย"}</div>`
-      + S.forced.map((f, i) => `<div class="qcard forced"><div class="ni">${f.e}</div><div><b>${esc(f.title)}</b><div class="t">${esc(f.text)}</div><div class="meta"><span class="cost">${baht(f.cost)}</span><span>📍 ${bname(f.to)}</span><span>ถึงวันที่ ${f.due}</span></div></div>${navBtn("f" + i, f)}</div>`).join("")
-      + (S.quest ? `<div class="qcard"><div class="ni">${S.quest.e}</div><div><b>${esc(S.quest.title)}</b><div class="t">${esc(S.quest.text)}</div><div class="meta">${qMeta(S.quest)}<span>📍 ${S.quest.stage === "pickup" ? "รับของที่ " + bname(S.quest.from) : bname(S.quest.to)}</span><span>ถึงวันที่ ${S.quest.due}</span></div></div><div class="act">${navBtn("q", S.quest)}<button class="btn sm" id="qCancel">ยกเลิก</button></div></div>` : "")
-      + S.invites.map((v, i) => `<div class="qcard"><div class="ni">${v.e}</div><div><b>${v.status === "accepted" ? "♥ " : "ชวน: "}${esc(v.title)}</b><div class="t">${esc(v.text)}</div><div class="meta"><span class="cost">${baht(v.cost)}</span><span>+${v.mp} ✨</span><span>📍 ${bname(v.to)}</span><span>${v.deadline != null ? `⏳ เหลือ ${mmss(cdLeft(v))}` : `ตอบรับถึงวันที่ ${v.due}`}</span></div></div>${v.status === "accepted" ? navBtn("v" + i, v) : ""}</div>`).join("")
+      + S.forced.map((f, i) => `<div class="qcard forced"><div class="ni">${f.e}</div><div><b>${esc(f.title)}</b><div class="t">${esc(f.text)}</div><div class="meta"><span class="cost">${baht(f.cost)}</span><span>📍 ${bname(f.to)}</span><span>เหลือ ${Math.max(0, f.due - S.day)} วัน</span></div></div>${navBtn("f" + i, f)}</div>`).join("")
+      + (S.quest ? `<div class="qcard"><div class="ni">${S.quest.e}</div><div><b>${esc(S.quest.title)}</b><div class="t">${esc(S.quest.text)}</div><div class="meta">${qMeta(S.quest)}<span>📍 ${S.quest.stage === "pickup" ? "รับของที่ " + bname(S.quest.from) : bname(S.quest.to)}</span><span>เหลือ ${Math.max(0, S.quest.due - S.day)} วัน</span></div></div><div class="act">${navBtn("q", S.quest)}<button class="btn sm" id="qCancel">ยกเลิก</button></div></div>` : "")
+      + S.invites.map((v, i) => `<div class="qcard"><div class="ni">${v.e}</div><div><b>${v.status === "accepted" ? "♥ " : "ชวน: "}${esc(v.title)}</b><div class="t">${esc(v.text)}</div><div class="meta"><span class="cost">${baht(v.cost)}</span><span>+${v.mp} ✨</span><span>📍 ${bname(v.to)}</span><span>${v.deadline != null ? `⏳ เหลือ ${mmss(cdLeft(v))}` : `ตอบรับใน ${Math.max(0, v.due - S.day)} วัน`}</span></div></div>${v.status === "accepted" ? navBtn("v" + i, v) : ""}</div>`).join("")
       + `<p class="muted">ภารกิจ ${S.questsDone} · งานเสริม ${S.jobsDone}</p>`;
   }
   if (phoneTab === "wallet") {
@@ -1305,13 +1328,13 @@ function renderPhone() {
     <div class="ptabs">${tabs.map(([k, i, n, b]) => `<button class="ptab" data-t="${k}" aria-current="${k === phoneTab}"><span class="i">${i}</span>${n}${b ? `<span class="dot">${b}</span>` : ""}</button>`).join("")}</div>`, "phone");
   $("#pClose", p).onclick = () => { Sound.blip(); closePhone(); };
   p.querySelectorAll(".ptab").forEach((b) => (b.onclick = () => { Sound.blip(); phoneTab = b.dataset.t; renderPhone(); }));
-  p.querySelectorAll("[data-acc]").forEach((b) => (b.onclick = () => { const n = S.inbox.find((x) => x.id === +b.dataset.acc); const v = n.invite, bd = BMAP[v.to], dist = Math.abs(bd.dx - P.x) + Math.abs(bd.dy - P.y), lim = Math.round(clamp(10 + dist * 0.3, 18, 40));
-    v.status = "accepted"; v.deadline = S.t + lim; v.due = CFG.days; S.focus = v; trackerKey = ""; Sound.coin(); toast(`⏳ ไป${bd.name}ให้ทันใน ${lim} วิ!`); renderPhone(); }));
+  p.querySelectorAll("[data-acc]").forEach((b) => (b.onclick = () => { const n = S.inbox.find((x) => x.id === +b.dataset.acc); const v = n.invite, bd = BMAP[v.to], dist = Math.abs(bd.dx - P.x) + Math.abs(bd.dy - P.y), lim = Math.round(clamp(20 + dist * 0.45, 30, 60));
+    v.status = "accepted"; v.deadline = S.t + lim; v.cdTotal = lim; v.due = CFG.days; S.focus = v; trackerKey = ""; Sound.coin(); toast(`⏳ ไป${bd.name}ให้ทันใน ${lim} วิ!`); renderPhone(); }));
   p.querySelectorAll("[data-dec]").forEach((b) => (b.onclick = () => { const n = S.inbox.find((x) => x.id === +b.dataset.dec); S.invites = S.invites.filter((v) => v !== n.invite); S.mp = clamp(S.mp - 4, 0, 100); Sound.blip(); renderPhone(); }));
   const qc = $("#qCancel", p); if (qc) qc.onclick = () => { S.quest = null; Sound.blip(); renderPhone(); };
   p.querySelectorAll("[data-nav]").forEach((b) => (b.onclick = () => { const k = b.dataset.nav, ref = k === "q" ? S.quest : k[0] === "f" ? S.forced[+k.slice(1)] : S.invites[+k.slice(1)]; if (ref) { setFocus(ref); renderPhone(); } }));
   const dl = $("#dLeft", p); if (dl) dl.onclick = async () => { await distPanel({ src: "left", title: "แบ่งเงินเหลือ", cancel: true }); renderPhone(); };
-  const dw = $("#dWallet", p); if (dw) dw.onclick = async () => { await distPanel({ src: "wallet", title: "แบ่งเงินเดือน", cancel: true, hint: (r) => `<div class="hint">🍜 เหลือค่ากินไว้ด้วย (วันละ ~${baht(MEAL_AVG * 2.55)})</div>` }); renderPhone(); };
+  const dw = $("#dWallet", p); if (dw) dw.onclick = async () => { await distPanel({ src: "wallet", title: "แบ่งเงินเดือน", cancel: true, hint: (r) => `<div class="hint">🍜 เหลือค่ากินไว้ด้วย (ถึงสิ้นเดือน ~${baht(MEAL_AVG * MEALS_PER_DAY * Math.max(1, CFG.days - S.day + 1))})</div>` }); renderPhone(); };
 }
 function navBtn(k, ref) {
   const on = targets()[0] && targets()[0].ref === ref;
@@ -1329,7 +1352,7 @@ function helpHTML() {
       <dt>💰 เงินเหลือ</dt><dd>ใช้ไม่หมด ย้ายมาตอนสิ้นเดือน</dd>
       <dt>🐷 เงินเก็บ</dt><dd>เงินสำรองฉุกเฉิน</dd>
       <dt>📈 ลงทุน</dt><dd>มอนในทีม ขึ้นลงทุกวัน</dd>
-      <dt>🍜 ค่ากิน</dt><dd>หักเอง วันละ 2–3 มื้อ</dd>
+      <dt>🍜 ค่ากิน</dt><dd>หักเองทุกมื้อ มื้อละ ฿40–200</dd>
       <dt>📱 มือถือ</dt><dd>บิลสีแดง ต้องไปจ่ายก่อน</dd>
       <dt>🧭 นำทาง</dt><dd>แตะแถบภารกิจ เลือกว่าจะไปไหนก่อน</dd>
       <dt>⏳ นัดเพื่อน</dt><dd>มีเวลานับถอยหลัง ไปไม่ทัน = ล้มเหลว</dd>
@@ -1546,7 +1569,7 @@ function payday() {
   }
   S.debtOld = S.debt;
   const cl = CLASSES[S.cls];
-  const rent = Math.max(3000, Math.round(S.salary * 0.22 / 100) * 100), util = Math.round(S.salary * 0.04 / 10) * 10, tel = Math.max(399, Math.round(S.salary * 0.02 / 100) * 100 - 1), food = Math.round(MEAL_AVG * 2.55 * CFG.days / 100) * 100;
+  const rent = Math.max(3000, Math.round(S.salary * 0.22 / 100) * 100), util = Math.round(S.salary * 0.04 / 10) * 10, tel = Math.max(399, Math.round(S.salary * 0.02 / 100) * 100 - 1), food = Math.round(MEAL_AVG * MEALS_PER_DAY * CFG.days / 100) * 100;
   const est = rent + util + tel + food + 1500;
   const vals = {};
   for (const k in S.lastAlloc) if (k === "save" || S.team.some((m) => "m:" + m.id === k)) vals[k] = Math.min(S.lastAlloc[k], S.wallet);
@@ -1678,7 +1701,7 @@ async function enterBuilding(b) {
     if (b.id === "home") opts = [{ k: "nap", label: "😴 นอนถึงพรุ่งนี้" }, { k: "sleep", label: "🌙 ข้ามไปสิ้นเดือน", cls: "primary" }];
     if (b.id === "bank") opts = [{ k: "debt", label: "💳 โปะหนี้บัตร", disabled: S.debt < 1 }, { k: "wd", label: "🏧 ถอนเงินเก็บ", disabled: S.save < 1 },
       { k: "sellm", label: "📉 ขายมอน", disabled: !S.team.some((m) => !m.scam && m.value > 1) }, { k: "dist", label: "🔁 แบ่งเงิน" }];
-    if (b.id === "office") opts = [{ k: "ot", label: "💼 ทำโอที (2 วัน)", cls: "primary", disabled: !!S.mflag.ot }];
+    if (b.id === "office") opts = [{ k: "ot", label: "💼 ทำโอที (1 วัน)", cls: "primary", disabled: !!S.mflag.ot }];
     if (b.id === "jobs") opts = Object.entries(MG).map(([k, g]) => ({ k: "job:" + k, label: `${g.e} ${g.name}`, cls: "primary" }));
     if (b.id === "library") opts = [{ k: "study", label: "🔍 ศึกษามอน (✨ −2)", disabled: !S.team.some((m) => !m.known) }, { k: "tip", label: "📖 เกร็ดความรู้" }];
     if (b.id === "clinic") opts = [{ k: "check", label: "🩺 ตรวจสุขภาพ " + baht(S.salary * 0.02), disabled: S.checkup > 0 }];
@@ -1716,7 +1739,7 @@ async function enterBuilding(b) {
       if (src.k === "x") continue;
       await distPanel({ src: src.k, title: "แบ่งเงิน", cancel: true }); scene({ e: b.e, img: "b-" + b.id, name: b.name, sub: "" }); continue;
     }
-    if (c.k === "ot") { S.mflag.ot = 1; const pay = Math.round(S.salary * rand(0.1, 0.15)); S.mp = clamp(S.mp - 8, 0, 100); S.quiet = true; advance(DAY_SEC() * 2); S.quiet = false; income(pay, "job", "ค่าโอที", "💼"); Sound.coin(); sceneStats(); await say(`โอที 2 วัน +${baht(pay)} (✨ −8)`); continue; }
+    if (c.k === "ot") { S.mflag.ot = 1; const pay = Math.round(S.salary * rand(0.1, 0.15)); S.mp = clamp(S.mp - 8, 0, 100); S.quiet = true; advance(DAY_SEC()); S.quiet = false; income(pay, "job", "ค่าโอที", "💼"); Sound.coin(); sceneStats(); await say(`โอที 1 วัน +${baht(pay)} (✨ −8)`); continue; }
     if (c.k.startsWith("job:")) { await doJob(c.k.slice(4), 1); scene({ e: b.e, img: "b-" + b.id, name: b.name, sub: "" }); continue; }
     if (c.k === "study") { S.team.forEach((m) => { if (!m.known) { m.known = true; S.stats.studied++; } }); S.mp = clamp(S.mp - 2, 0, 100); sceneStats(); await say("🔍 เห็นค่าพลังมอนแล้ว ดูใน 📈 พอร์ต"); continue; }
     if (c.k === "tip") { await say("💡 " + pick(TIPS)); continue; }
@@ -1847,7 +1870,7 @@ async function bossFight() {
   const lines = [];
   S.team.forEach((m) => {
     if (m.scam) return; const h = cr.hit[SPECIES[m.sp].type] || 0, before = m.value; m.value *= 1 + h; m.mGrow += m.value - before;
-    if (h < 0) S.rebound.push({ id: m.id, days: 60, amt: -h * 0.45 });
+    if (h < 0) S.rebound.push({ id: m.id, days: 2 * CFG.days, amt: -h * 0.45 });
     if (before > 0) lines.push(`${SPECIES[m.sp].e} ${h === 0 ? "รอด" : pct(h * 100, 0)}`);
   });
   if (lines.length) { Sound.hit(); await say(lines.join(" · ")); }
@@ -1868,7 +1891,7 @@ async function bossFight() {
   }
   if (c.k === "buy") {
     const amt = Math.round(S.save * 0.5), tgt = hurt.sort((a, b) => b.value - a.value)[0];
-    S.save -= amt; tgt.value += amt; tgt.invested += amt; tgt.mIn += amt; S.rebound.push({ id: tgt.id, days: 60, amt: 0.04 }); Sound.coin(); sceneStats();
+    S.save -= amt; tgt.value += amt; tgt.invested += amt; tgt.mIn += amt; S.rebound.push({ id: tgt.id, days: 2 * CFG.days, amt: 0.04 }); Sound.coin(); sceneStats();
     await say(`ใช้เงินเก็บ ${baht(amt)} ซื้อเพิ่ม (เงินสำรองลดลง)`);
   }
 }
