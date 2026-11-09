@@ -1,0 +1,1966 @@
+<title>Payday Quest</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap">
+<style>
+/* Layout: a big walkable town with a daytime clock fills the screen; frosted-glass HUD on top (clock, 4 money accounts, quest tracker), D-pad / phone / A button at the bottom. Events arrive on an in-game phone instead of popping up. Single deliberate light look. */
+:root {
+  color-scheme: light;
+  --sky-a: #6fd3ff;  --sky-b: #b8f2c9;
+  --ink: #0f1b3d;    --ink-2: #3a4770;
+  --glass: rgba(255, 255, 255, 0.74);
+  --glass-line: rgba(255, 255, 255, 0.9);
+  --shadow: 0 10px 34px rgba(18, 40, 110, 0.28);
+  --blue: #1e7bff;  --aqua: #12c2c2;  --lime: #3cc35f;  --sun: #ffb21e;
+  --pink: #ff4f9a;  --grape: #8a5cff; --red: #ef3b4f;  --gray: #8a93a8;
+  --good: #11914a;  --bad: #d4243a;
+  --font-head: "Prompt", "Leelawadee UI", "Tahoma", sans-serif;
+  --font-body: "IBM Plex Sans Thai", "Leelawadee UI", "Tahoma", sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; overflow: hidden; color: var(--ink);
+  background: linear-gradient(160deg, var(--sky-a), var(--sky-b));
+  font-family: var(--font-body); font-size: 16px; line-height: 1.5;
+  -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
+}
+.num { font-family: var(--font-head); font-variant-numeric: tabular-nums; font-weight: 600; }
+h1, h2, h3 { font-family: var(--font-head); margin: 0; text-wrap: balance; line-height: 1.25; }
+h2 { font-size: 21px; } h3 { font-size: 17px; }
+p { margin: 0; }
+#world { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+.glass {
+  background: var(--glass); border: 1px solid var(--glass-line); border-radius: 20px; box-shadow: var(--shadow), inset 0 1px 0 #fff;
+  -webkit-backdrop-filter: blur(16px) saturate(1.6); backdrop-filter: blur(16px) saturate(1.6);
+}
+
+/* ---------- HUD ---------- */
+.hud { position: fixed; top: calc(6px + env(safe-area-inset-top, 0px)); left: max(8px, env(safe-area-inset-left, 0px)); right: max(8px, env(safe-area-inset-right, 0px));
+  max-width: 560px; margin: 0 auto; padding: 7px 9px; z-index: 5; display: flex; flex-direction: column; gap: 5px; }
+.hud .r1 { display: flex; align-items: center; gap: 6px; }
+.clock { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-family: var(--font-head); font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; }
+.clock .mo { background: linear-gradient(180deg, #fff, #dff1ff); border-radius: 10px; padding: 1px 8px; color: var(--blue); box-shadow: inset 0 0 0 1px rgba(30,123,255,.25); }
+.clock .tm { font-variant-numeric: tabular-nums; }
+.iconbtn { width: 40px; height: 40px; flex: 0 0 auto; border-radius: 13px; border: 1px solid var(--glass-line); background: linear-gradient(180deg, #fff, #e3f0ff); font-size: 18px; cursor: pointer; box-shadow: 0 3px 10px rgba(18,40,110,.18); padding: 0; color: var(--ink); }
+.bar { height: 7px; border-radius: 99px; background: rgba(15,27,61,.12); overflow: hidden; }
+.bar i { display: block; height: 100%; border-radius: 99px; transition: width .4s; }
+.bar.mp i { background: linear-gradient(90deg, #ff8ac2, var(--pink)); }
+.bar.time i { background: linear-gradient(90deg, #ffd56b, var(--sun)); transition: none; }
+.accts { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 5px; }
+.acct { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; min-width: 0; padding: 3px 8px; border-radius: 10px; border: 1px solid rgba(255,255,255,.95);
+  background: rgba(255,255,255,.72); font: inherit; font-size: 12.5px; color: var(--ink-2); cursor: pointer; text-align: left; transition: background .3s; }
+.acct b { font-family: var(--font-head); font-size: 15px; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.acct .lb { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.acct.up { background: rgba(170,240,190,.95); } .acct.down { background: rgba(255,200,208,.95); }
+.acct small { font-family: var(--font-head); font-weight: 600; }
+.mprow { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; font-size: 12.5px; color: var(--ink-2); }
+.mprow .chipx { font-family: var(--font-head); font-weight: 600; font-size: 12.5px; white-space: nowrap; }
+.mprow .debt { color: var(--bad); }
+#tracker { display: flex; flex-direction: column; gap: 3px; }
+.trk { display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 10px; font-size: 13px; font-weight: 600; font-family: var(--font-head); cursor: pointer; border: 0; text-align: left; color: var(--ink); width: 100%; }
+.trk span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.trk small { font-weight: 500; white-space: nowrap; }
+.trk.forced { background: #ffe1e5; } .trk.quest { background: #fff1c9; } .trk.invite { background: #e5efff; }
+
+/* ---------- bottom controls ---------- */
+.pad { position: fixed; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); left: max(12px, env(safe-area-inset-left, 0px)); width: 150px; height: 150px; z-index: 5; }
+.pad button { position: absolute; width: 52px; height: 52px; border-radius: 16px; border: 1px solid var(--glass-line); background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(214,234,255,.8)); font-size: 21px; color: var(--ink); box-shadow: 0 4px 12px rgba(18,40,110,.22); touch-action: none; cursor: pointer; }
+.pad button.on { background: linear-gradient(180deg, #bfe2ff, #8fcaff); }
+.pad .u { left: 49px; top: 0; } .pad .d { left: 49px; bottom: 0; } .pad .l { left: 0; top: 49px; } .pad .r { right: 0; top: 49px; }
+.abtn { position: fixed; bottom: calc(34px + env(safe-area-inset-bottom, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: 80px; height: 80px; border-radius: 50%; z-index: 5;
+  border: 2px solid rgba(255,255,255,.95); color: #fff; font-family: var(--font-head); font-weight: 700; font-size: 20px; line-height: 1.05; cursor: pointer;
+  background: radial-gradient(circle at 35% 25%, #8fd0ff, var(--blue) 60%, #0b4fc2); box-shadow: 0 8px 20px rgba(11,79,194,.45), inset 0 2px 0 rgba(255,255,255,.6); text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+.abtn small { display: block; font-size: 11px; font-weight: 500; }
+.phonebtn { position: fixed; bottom: calc(26px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-10%); z-index: 5; width: 62px; height: 74px; border-radius: 18px; cursor: pointer;
+  border: 2px solid rgba(255,255,255,.95); background: linear-gradient(180deg, #2b3557, #121a33); color: #fff; font-size: 26px; box-shadow: 0 8px 20px rgba(15,27,61,.4); font-family: var(--font-head); padding: 0; }
+.phonebtn small { display: block; font-size: 10px; font-weight: 600; }
+.phonebtn .nbadge { position: absolute; top: -7px; right: -7px; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 99px; background: var(--red); color: #fff; font-size: 13px; font-weight: 700; display: grid; place-items: center; border: 2px solid #fff; }
+#ticker { position: fixed; z-index: 4; left: max(12px, env(safe-area-inset-left, 0px)); bottom: calc(176px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 4px; pointer-events: none; max-width: 70%; }
+#ticker div { padding: 3px 10px; border-radius: 99px; font-size: 13px; font-weight: 600; font-family: var(--font-head); background: rgba(255,255,255,.88); box-shadow: 0 2px 8px rgba(18,40,110,.18); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: tin .25s ease-out; }
+#ticker .m { color: var(--bad); } #ticker .p { color: var(--good); } #ticker .n { color: var(--ink-2); }
+@keyframes tin { from { transform: translateX(-12px); opacity: 0; } }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(190px + env(safe-area-inset-bottom, 0px)); z-index: 6; padding: 8px 16px; font-weight: 600; font-family: var(--font-head); font-size: 15px; width: max-content; max-width: calc(100% - 32px); text-align: center; pointer-events: none; }
+
+/* phone notification banner */
+.notif { position: fixed; z-index: 9; left: 50%; top: calc(8px + env(safe-area-inset-top, 0px)); width: min(440px, calc(100% - 20px)); transform: translate(-50%, -150%); transition: transform .35s cubic-bezier(.2,.9,.3,1.2);
+  display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 20px; cursor: pointer; background: rgba(28,34,60,.88); color: #fff; box-shadow: 0 12px 30px rgba(10,20,60,.4);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,.25); }
+.notif.show { transform: translate(-50%, 0); }
+.notif .ic { width: 40px; height: 40px; flex: 0 0 40px; border-radius: 12px; display: grid; place-items: center; font-size: 22px; background: rgba(255,255,255,.16); }
+.notif .tx { min-width: 0; font-size: 14px; line-height: 1.35; }
+.notif .tx b { display: block; font-family: var(--font-head); font-size: 14px; }
+.notif .tx span { opacity: .85; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.notif.urgent .ic { background: var(--red); }
+
+/* ---------- modal panels ---------- */
+.scrim { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: rgba(12, 36, 90, 0.24);
+  padding: calc(10px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
+.panel { width: 100%; max-width: 460px; max-height: 100%; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 11px; }
+.panel .head { display: flex; gap: 12px; align-items: center; }
+.badge { flex: 0 0 auto; width: 50px; height: 50px; border-radius: 16px; display: grid; place-items: center; font-size: 27px; background: linear-gradient(180deg, #fff, #dff1ff); box-shadow: inset 0 0 0 1px rgba(30,123,255,.2); }
+.muted { color: var(--ink-2); font-size: 14px; }
+.foot { font-size: 13px; color: var(--ink-2); text-align: center; }
+.card { background: rgba(255,255,255,.8); border-radius: 16px; padding: 11px 13px; border: 1px solid rgba(255,255,255,.95); }
+.row { display: flex; gap: 10px; flex-wrap: wrap; }
+.row > .btn { flex: 1 1 0; }
+.btn { font-family: var(--font-head); font-weight: 600; font-size: 15px; color: var(--ink); cursor: pointer; min-height: 46px; padding: 9px 12px; border-radius: 14px; text-align: center;
+  border: 1px solid rgba(255,255,255,.95); background: linear-gradient(180deg, #ffffff 0%, #eef6ff 50%, #dcebff 51%, #e9f3ff 100%); box-shadow: 0 3px 10px rgba(18,40,110,.16); }
+.btn:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 1px 4px rgba(18,40,110,.2); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn:focus-visible, .pick:focus-visible, input:focus-visible, .abtn:focus-visible, .pad button:focus-visible, .iconbtn:focus-visible, .acct:focus-visible, .trk:focus-visible, .phonebtn:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+.btn.primary, .btn.green, .btn.warn, .btn.danger { color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.3); border-color: rgba(255,255,255,.7); }
+.btn.primary { background: linear-gradient(180deg, #7cc4ff 0%, #2f8dff 50%, #1268f0 51%, #2a86ff 100%); }
+.btn.green { background: linear-gradient(180deg, #8ae89c 0%, #34b857 50%, #1f9440 51%, #36b656 100%); }
+.btn.warn { background: linear-gradient(180deg, #ffd27a 0%, #ffa51e 50%, #e98600 51%, #ffa01e 100%); }
+.btn.danger { background: linear-gradient(180deg, #ff9aa8 0%, #ef3b4f 50%, #c91f33 51%, #e9384d 100%); }
+.btn.sm { min-height: 34px; padding: 4px 10px; font-size: 13px; border-radius: 11px; }
+.menu { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.menu .btn { text-align: left; font-size: 14.5px; }
+.menu .btn.wide { grid-column: 1 / -1; text-align: center; }
+ol.rules { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; }
+label.check { display: flex; gap: 10px; align-items: flex-start; font-weight: 600; cursor: pointer; }
+label.check input { width: 24px; height: 24px; flex: 0 0 24px; margin-top: 2px; accent-color: var(--blue); }
+dl.terms { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 7px 12px; font-size: 15px; }
+dl.terms dt { font-weight: 600; white-space: nowrap; } dl.terms dd { margin: 0; min-width: 0; }
+.field { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-family: var(--font-head); font-size: 15px; }
+input[type=text], input[type=number] { font: inherit; font-family: var(--font-body); font-weight: 500; width: 100%; padding: 9px 11px; border-radius: 12px; border: 1px solid rgba(30,123,255,.35); background: rgba(255,255,255,.95); color: var(--ink); user-select: text; -webkit-user-select: text; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chips .btn { flex: 1 1 auto; min-height: 38px; padding: 5px 8px; font-size: 14px; }
+.chips .btn[aria-pressed="true"] { border-color: var(--blue); background: linear-gradient(180deg, #e8f4ff, #cfe6ff); box-shadow: 0 0 0 3px rgba(30,123,255,.18); }
+.picks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pick { font: inherit; text-align: left; color: var(--ink); cursor: pointer; padding: 10px; min-height: 48px; display: flex; gap: 8px; align-items: flex-start; border-radius: 14px; border: 2px solid rgba(255,255,255,.9); background: rgba(255,255,255,.65); }
+.pick[aria-pressed="true"] { border-color: var(--blue); background: linear-gradient(180deg, #e8f4ff, #cfe6ff); box-shadow: 0 0 0 3px rgba(30,123,255,.18); }
+.pick .ic { font-size: 26px; line-height: 1; }
+.pick b { display: block; font-family: var(--font-head); font-size: 15px; }
+.pick span.d { display: block; font-size: 13.5px; color: var(--ink-2); }
+.big { font-family: var(--font-head); font-weight: 700; font-size: 30px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.hint { font-size: 14px; padding: 8px 12px; border-radius: 12px; background: #fff6dc; border: 1px solid #ffe3a0; }
+.hint.red { background: #ffe5e9; border-color: #ffc2cb; color: #9b1c2e; }
+.hint.blue { background: #eaf3ff; border-color: #c8ddff; }
+
+/* money distribution rows */
+.drow { display: grid; grid-template-columns: 1fr 118px; gap: 4px 8px; align-items: center; padding: 8px 10px; border-radius: 14px; background: rgba(255,255,255,.8); border-left: 5px solid var(--c, var(--gray)); }
+.drow .lbl { min-width: 0; } .drow b { display: block; font-family: var(--font-head); font-size: 15px; }
+.drow small { display: block; color: var(--ink-2); font-size: 13px; line-height: 1.3; }
+.drow input { text-align: right; font-family: var(--font-head); font-weight: 600; padding: 7px 9px; }
+.drow .qc { grid-column: 1 / -1; display: flex; gap: 5px; }
+.drow .qc .btn { flex: 1; min-height: 30px; padding: 2px 4px; font-size: 12.5px; border-radius: 9px; }
+.remain { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.lines { display: flex; flex-direction: column; gap: 3px; font-size: 14px; }
+.lines div { display: flex; justify-content: space-between; gap: 8px; }
+.lines b { font-family: var(--font-head); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* encounter scene */
+.foe { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
+.orb { width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; font-size: 48px; line-height: 1;
+  background: radial-gradient(circle at 35% 28%, #fff, rgba(255,255,255,.4) 45%, rgba(30,123,255,.25)); box-shadow: inset 0 -6px 14px rgba(18,40,110,.18), 0 8px 18px rgba(18,40,110,.22); }
+.orb.boss { background: radial-gradient(circle at 35% 28%, #fff, rgba(255,210,220,.5) 45%, rgba(239,59,79,.45)); }
+.foe .name { font-family: var(--font-head); font-weight: 700; font-size: 19px; line-height: 1.2; }
+.foe .sub { font-family: var(--font-head); font-weight: 600; color: var(--ink-2); }
+.speech { background: rgba(255,255,255,.92); border-radius: 16px; padding: 11px 13px; min-height: 70px; font-size: 16px; cursor: pointer; position: relative; border: 1px solid #fff; }
+.speech .more { position: absolute; right: 12px; bottom: 6px; color: var(--blue); animation: bob 1s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(3px); } }
+.shake { animation: shake .35s; } @keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.pulse { animation: pulse .6s ease-in-out 2; } @keyframes pulse { 50% { transform: scale(1.08); } }
+.mini { display: flex; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); }
+
+/* monster card */
+.mcard { display: grid; grid-template-columns: 60px 1fr; gap: 12px; }
+.mcard .orb { width: 60px; height: 60px; font-size: 34px; }
+.mcard .kind { font-size: 13.5px; color: var(--ink-2); }
+.stars { color: var(--sun); letter-spacing: 2px; text-shadow: 0 1px 0 rgba(0,0,0,.15); }
+.stat { display: grid; grid-template-columns: 84px 1fr 60px; gap: 8px; align-items: center; font-size: 13.5px; }
+.stat .sbar { height: 9px; border-radius: 99px; background: rgba(15,27,61,.1); overflow: hidden; }
+.stat .sbar i { display: block; height: 100%; border-radius: 99px; }
+.stat .val { text-align: right; font-family: var(--font-head); font-weight: 600; }
+.ad { font-size: 13.5px; background: #fff4cf; border-radius: 10px; padding: 4px 8px; }
+.trait { font-size: 13.5px; font-weight: 600; } .trait.badt { color: var(--bad); }
+
+/* phone */
+.phone { max-width: 400px; padding: 0; gap: 0; background: rgba(245,248,255,.86); border-radius: 30px; border: 3px solid rgba(255,255,255,.95); overflow: hidden; height: min(720px, 100%); }
+.phone .ptop { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px 6px; font-family: var(--font-head); font-weight: 600; font-size: 13px; color: var(--ink-2); }
+.phone .ptitle { padding: 0 16px 8px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.phone .pbody { flex: 1; overflow-y: auto; padding: 4px 14px 14px; display: flex; flex-direction: column; gap: 9px; min-height: 0; }
+.phone .ptabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 6px 8px calc(8px + env(safe-area-inset-bottom, 0px)); background: rgba(255,255,255,.85); border-top: 1px solid rgba(15,27,61,.08); }
+.ptab { border: 0; background: none; cursor: pointer; font: inherit; font-size: 11px; color: var(--ink-2); display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 0; border-radius: 12px; position: relative; font-family: var(--font-head); font-weight: 600; }
+.ptab .i { font-size: 21px; line-height: 1.1; }
+.ptab[aria-current="true"] { background: #e3efff; color: var(--blue); }
+.ptab .dot { position: absolute; top: 2px; right: 18%; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 99px; background: var(--red); color: #fff; font-size: 11px; display: grid; place-items: center; }
+.nitem { display: grid; grid-template-columns: 38px 1fr; gap: 10px; padding: 9px 10px; border-radius: 16px; background: #fff; border: 1px solid rgba(15,27,61,.06); }
+.nitem.unread { box-shadow: inset 4px 0 0 var(--blue); }
+.nitem .ni { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-size: 21px; background: #eef4ff; }
+.nitem b { font-family: var(--font-head); font-size: 14.5px; display: block; }
+.nitem .t { font-size: 13.5px; color: var(--ink-2); line-height: 1.35; }
+.nitem .when { font-size: 12px; color: var(--gray); }
+.acrow { display: grid; grid-template-columns: 40px 1fr auto; gap: 10px; align-items: center; padding: 10px; border-radius: 16px; background: #fff; }
+.acrow .ni { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 22px; background: #eef4ff; }
+.acrow b.v { font-family: var(--font-head); font-size: 17px; font-variant-numeric: tabular-nums; }
+.acrow small { display: block; color: var(--ink-2); font-size: 12.5px; line-height: 1.3; }
+.mon { padding: 10px 12px; border-radius: 16px; background: #fff; display: flex; flex-direction: column; gap: 4px; }
+.mon .tp { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.mon .tp b { font-family: var(--font-head); }
+.mon svg { width: 100%; height: 40px; display: block; }
+.gl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; font-size: 12.5px; color: var(--ink-2); }
+.gl b { display: block; font-family: var(--font-head); font-size: 14.5px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.up { color: var(--good) !important; } .down { color: var(--bad) !important; }
+.txl { display: flex; flex-direction: column; gap: 2px; font-size: 13.5px; }
+.txl div { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 4px 2px; border-bottom: 1px solid rgba(15,27,61,.06); }
+.txl b { font-family: var(--font-head); font-variant-numeric: tabular-nums; }
+.qcard { padding: 11px 12px; border-radius: 16px; background: #fff; display: grid; grid-template-columns: 40px 1fr; gap: 10px; align-items: start; border: 2px solid transparent; }
+.qcard .ni { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 22px; background: #fff3d6; }
+.qcard b { font-family: var(--font-head); display: block; }
+.qcard .t { font-size: 13.5px; color: var(--ink-2); }
+.qcard .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; font-size: 12.5px; font-family: var(--font-head); font-weight: 600; }
+.qcard .meta span { padding: 1px 8px; border-radius: 99px; background: #eef4ff; }
+.qcard .meta .pay { background: #dcf7e3; color: var(--good); } .qcard .meta .cost { background: #ffe5e9; color: var(--bad); }
+.qcard .act { grid-column: 1 / -1; display: flex; gap: 6px; }
+.qcard .act .btn { flex: 1; }
+.qcard.forced { border-color: #ffc2cb; } .qcard.forced .ni { background: #ffe1e5; }
+
+/* minigames */
+.mgtop { display: flex; justify-content: space-between; font-family: var(--font-head); font-weight: 600; }
+.mg-grid { display: grid; gap: 8px; }
+.mg-cell { aspect-ratio: 1; max-width: 100%; border-radius: 16px; border: 2px solid #fff; background: rgba(255,255,255,.7); font-size: 34px; display: grid; place-items: center; cursor: pointer; padding: 0; transition: background .15s; }
+.mg-cell.ok { background: #c9f5d4; } .mg-cell.no { background: #ffd0d7; }
+.mg-card { aspect-ratio: 3/4; max-width: 100%; border-radius: 12px; border: 2px solid #fff; font-size: 28px; display: grid; place-items: center; cursor: pointer; padding: 0;
+  background: linear-gradient(160deg, #7cc4ff, #2f8dff); color: #fff; }
+.mg-card.open, .mg-card.done { background: #fff; color: var(--ink); }
+.mg-card.done { opacity: .55; }
+.mg-q { font-family: var(--font-head); font-weight: 700; font-size: 20px; text-align: center; padding: 12px; background: #fff; border-radius: 16px; line-height: 1.35; }
+.mg-q small { display: block; font-size: 14px; font-weight: 500; color: var(--ink-2); }
+.mg-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.mg-opts .btn { font-size: 20px; min-height: 58px; }
+
+table.rep { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.rep th, table.rep td { padding: 7px 5px; text-align: left; border-bottom: 1px solid rgba(15,27,61,.08); vertical-align: middle; }
+table.rep .r { text-align: right; white-space: nowrap; }
+ul.lessons { margin: 6px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.rank { font-family: var(--font-head); font-weight: 700; color: var(--grape); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.logo { font-family: var(--font-head); font-weight: 700; font-size: 44px; line-height: 1; letter-spacing: -.01em; background: linear-gradient(180deg, #2f8dff, #0b4fc2); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tag { display: inline-block; font-size: 13px; font-weight: 600; padding: 2px 10px; border-radius: 99px; background: #fff; color: var(--grape); }
+@media (prefers-reduced-motion: reduce) { .shake, .pulse, .speech .more, #ticker div { animation: none; } .bar i, .notif { transition: none; } }
+[hidden] { display: none !important; }
+.trk.focus { box-shadow: inset 0 0 0 2.5px #1e7bff; }
+.trk.hurry { animation: hurry .6s ease-in-out infinite alternate; }
+@keyframes hurry { to { background: #ffd2d8; } }
+.trkhint { font-size: 12.5px; color: var(--ink-2); text-align: center; padding-top: 1px; }
+.cd { font-variant-numeric: tabular-nums; }
+/* real art */
+.orb img { width: 86%; height: 86%; object-fit: contain; filter: drop-shadow(0 4px 6px rgba(15,27,61,.25)); }
+.ic { width: 20px; height: 20px; object-fit: contain; vertical-align: -5px; margin-right: 3px; }
+.phonebtn img { width: 34px; height: 38px; object-fit: contain; display: block; margin: 0 auto; }
+.mg-cell img, .mg-card img { width: 78%; height: 78%; object-fit: contain; pointer-events: none; }
+.mg-card.open, .mg-card.done { background: #fff; }
+.mg-cashier { display: block; width: 62%; max-width: 240px; margin: 0 auto -6px; }
+.titlebg { position: fixed; inset: 0; z-index: 0; background: #f6c58f url(img/title-art.webp) center 30% / cover no-repeat; }
+.logowrap { position: relative; width: min(300px, 86%); margin: -6px auto -4px; }
+.logowrap img { width: 100%; display: block; }
+.logowrap .logo { position: absolute; left: 0; right: 0; top: 54%; transform: translateY(-50%); text-align: center; font-size: 34px; color: #fff; background: none; -webkit-text-fill-color: #fff; text-shadow: 0 2px 0 #0b3a8f, 0 4px 10px rgba(0,0,0,.35); }
+.titlebg ~ #modal .scrim { place-items: end center; padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(180deg, rgba(12,36,90,0) 40%, rgba(12,36,90,.35)); }
+.loadbar { height: 6px; border-radius: 9px; background: rgba(255,255,255,.6); overflow: hidden; } .loadbar i { display: block; height: 100%; width: 0; background: var(--blue); transition: width .2s; }
+/* readability pass: fewer words, bigger small text */
+.muted { font-size: 14.5px; } .hint { font-size: 15px; } .lines { font-size: 15px; }
+.acrow small, .drow small, .nitem .t, .qcard .t, .gl { font-size: 14px; }
+.qcard .meta, .nitem .when { font-size: 13.5px; }
+.steps { display: grid; gap: 8px; }
+.step { display: grid; grid-template-columns: 46px 1fr; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 14px; background: rgba(255,255,255,.8); }
+.step .si { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; font-size: 26px; background: #eef4ff; }
+.step b { display: block; font-family: var(--font-head); font-size: 16px; line-height: 1.3; }
+.step span { display: block; font-size: 14px; color: var(--ink-2); line-height: 1.35; }
+.goal { text-align: center; font-family: var(--font-head); font-weight: 600; font-size: 16px; padding: 10px; border-radius: 14px; background: #e8fff1; }
+</style>
+
+<canvas id="world" aria-label="แผนที่เมือง"></canvas>
+<div id="ui"></div>
+<div class="notif" id="notif" role="status" aria-live="polite"><div class="ic" id="nIc">📱</div><div class="tx"><b id="nT"></b><span id="nX"></span></div></div>
+
+<script>
+(() => {
+"use strict";
+/* ================= helpers ================= */
+const $ = (s, r = document) => r.querySelector(s);
+const ui = $("#ui");
+const rand = (a, b) => a + Math.random() * (b - a);
+const rint = (a, b) => Math.floor(rand(a, b + 1));
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+const baht = (n) => (n < -0.5 ? "-" : "") + "฿" + Math.round(Math.abs(n)).toLocaleString("en-US");
+const pct = (n, d = 1) => (n > 0 ? "+" : "") + n.toFixed(d) + "%";
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+const REDUCE = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+const EMO = "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif";
+
+/* ================= sound ================= */
+const Sound = {
+  on: store.get("pq_sound", true), ctx: null,
+  ac() { if (!this.ctx) { try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } return this.ctx; },
+  tone(f, d, type = "sine", vol = 0.08, delay = 0, slide = 0) {
+    if (!this.on) return; const c = this.ac(); if (!c) return;
+    try {
+      const t = c.currentTime + delay, o = c.createOscillator(), g = c.createGain();
+      o.type = type; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.linearRampToValueAtTime(f + slide, t + d);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      o.connect(g).connect(c.destination); o.start(t); o.stop(t + d + 0.02);
+    } catch (e) {}
+  },
+  blip() { this.tone(1200, 0.06, "sine", 0.06); },
+  step() { this.tone(240, 0.03, "triangle", 0.02); },
+  coin() { this.tone(1318, 0.08); this.tone(1760, 0.16, "sine", 0.08, 0.07); },
+  ping() { this.tone(1568, 0.08, "sine", 0.06); this.tone(2093, 0.12, "sine", 0.05, 0.09); },
+  hit() { this.tone(300, 0.28, "triangle", 0.1, 0, -180); },
+  appear() { [660, 880, 1100].forEach((f, i) => this.tone(f, 0.1, "sine", 0.07, i * 0.06)); },
+  boss() { [220, 207, 196, 185].forEach((f, i) => this.tone(f, 0.22, "triangle", 0.1, i * 0.17)); },
+  win() { [784, 988, 1175, 1568].forEach((f, i) => this.tone(f, 0.14, "sine", 0.08, i * 0.09)); },
+  bad() { this.tone(392, 0.16, "triangle", 0.09); this.tone(294, 0.3, "triangle", 0.09, 0.15); },
+};
+
+/* ================= game data (all names fictional) ================= */
+/* ---------- real art (img/*.webp, made by tools/make_img.py) ---------- */
+const IMG = {}, IMG_KEYS = ["t-grass", "t-tall", "t-path", "t-road", "t-plaza", "t-water", "c-player", "p-tree-round", "p-tree-pine", "p-lamp", "p-bench", "p-fountain", "p-board", "p-pond", "p-lake", "p-flowers", "p-bush",
+  "u-m-forced", "u-m-quest", "u-m-invite", "u-m-board"];
+const BIG_B = ["office", "mall", "station", "hall", "bank"];
+function img(k) { const i = IMG[k]; return i && i.complete && i.naturalWidth ? i : null; }
+const imgSrc = (k) => `img/${k}.webp`;
+const ico = (k, alt = "") => `<img class="ic" src="${imgSrc(k)}" alt="${alt}" draggable="false">`;
+let imgDone = 0, imgTotal = 0;
+function loadImages() {
+  const keys = [...IMG_KEYS, ...BUILDINGS.map((b) => "b-" + b.id), ...NPCS.map((n) => "n-" + n.id), ...Object.keys(SPECIES).map((k) => "m-" + k)];
+  imgTotal = keys.length;
+  return Promise.all(keys.map((k) => new Promise((res) => { const i = new Image(); i.decoding = "async"; i.onload = i.onerror = () => { imgDone++; const b = document.querySelector(".loadbar i"); if (b) b.style.width = (imgDone / imgTotal * 100) + "%"; res(); }; i.src = imgSrc(k); IMG[k] = i; })));
+}
+const CFG = { monthSec: 180, days: 30 };       // 1 month = 3 real minutes, 30 in-game days
+const DAY_SEC = () => CFG.monthSec / CFG.days;
+const ACC = { wallet: { e: "👛", n: "บัญชีเงินเดือน" }, left: { e: "💰", n: "เงินเหลือ" }, save: { e: "🐷", n: "เงินเก็บ" } };
+const SPECIES = {
+  turtle: { e: "🐢", name: "ต๊อกต๋อยออมทรัพย์", kind: "บัญชีเงินฝาก (สมมติ)", type: "SAFE", ret: [1.0, 2.0], vol: [0, 0.4], fee: [0, 0], div: [0, 0], liq: 1, w: 18, ad: "ปลอดภัย ถอนได้ทุกเมื่อ" },
+  owl: { e: "🦉", name: "ฮูกพันธบัตร", kind: "ตราสารหนี้ (สมมติ)", type: "BOND", ret: [2.4, 3.6], vol: [3, 6], fee: [0.2, 0.9], div: [0, 0], liq: 0.995, w: 14, ad: "มั่นคง ผลตอบแทนสม่ำเสมอ" },
+  wolf: { e: "🐺", name: "หมาป่าดัชนี", kind: "กองทุนหุ้นทั้งตลาด (สมมติ)", type: "EQUITY", ret: [6, 8.5], vol: [14, 18], fee: [0.1, 2.0], div: [0, 1.5], liq: 0.995, w: 18, ad: "เติบโตไปกับเศรษฐกิจ" },
+  dragon: { e: "🐉", name: "มังกรเทคโน", kind: "หุ้นเติบโตสูง (สมมติ)", type: "TECH", ret: [8, 13], vol: [26, 36], fee: [0.2, 1.8], div: [0, 0], liq: 0.995, w: 14, ad: "โตแรงแห่งยุคดิจิทัล!" },
+  lion: { e: "🦁", name: "สิงห์ทองคำ", kind: "ทองคำ (สมมติ)", type: "GOLD", ret: [3, 6], vol: [12, 16], fee: [0.1, 0.6], div: [0, 0], liq: 0.98, w: 12, ad: "ที่หลบภัยยามวิกฤต" },
+  snail: { e: "🐌", name: "หอยทากคอนโด", kind: "อสังหาให้เช่า (สมมติ)", type: "PROPERTY", ret: [1, 3], vol: [4, 8], fee: [0.5, 1.5], div: [3, 5], liq: 0.92, w: 9, ad: "ค่าเช่าเข้าทุกเดือน" },
+  bolt: { e: "⚡", name: "สายฟ้าดิจิทัล", kind: "สินทรัพย์ดิจิทัล (สมมติ)", type: "CRYPTO", ret: [0, 25], vol: [60, 85], fee: [0.5, 1.5], div: [0, 0], liq: 0.99, w: 7, ad: "รวยข้ามคืน!!" },
+  unicorn: { e: "🦄", name: "ยูนิคอร์นทองคำ", kind: "\"ลงทุนการันตีผล\"", type: "SCAM", scam: true, ret: [60, 60], vol: [0, 0], fee: [0, 0], div: [0, 0], liq: 0, w: 9, ad: "การันตี 5% ทุกเดือน ไม่มีความเสี่ยง ชวนเพื่อนได้โบนัส!" },
+};
+const TYPE_TH = { SAFE: "เงินฝาก", BOND: "ตราสารหนี้", EQUITY: "หุ้นทั้งตลาด", TECH: "หุ้นเทค", GOLD: "ทองคำ", PROPERTY: "อสังหา", CRYPTO: "ดิจิทัล", SCAM: "???" };
+const CLASSES = {
+  office: { ic: "👔", name: "พนักงานออฟฟิศ", d: "เงินเดือนนิ่ง เดือนสุดท้ายมีโบนัส" },
+  freelance: { ic: "🎨", name: "ฟรีแลนซ์", d: "รายได้ขึ้นลง 50–150%" },
+  shop: { ic: "🏪", name: "เจ้าของร้าน", d: "รายได้แกว่งแรง" },
+  gov: { ic: "🏛️", name: "ข้าราชการ", d: "รายได้นิ่ง ค่ารักษาจ่ายน้อย" },
+};
+const CRISES = [
+  { id: "rate", e: "🌪️", name: "พายุดอกเบี้ยขาขึ้น", text: "ดอกเบี้ยทั่วโลกพุ่ง! ของที่ดูปลอดภัยอย่างตราสารหนี้ก็ราคาตกได้", hit: { SAFE: 0, BOND: -0.08, EQUITY: -0.12, TECH: -0.26, GOLD: -0.03, PROPERTY: -0.07, CRYPTO: -0.35 } },
+  { id: "bubble", e: "🫧", name: "ฟองสบู่เทคแตก", text: "หุ้นเทคที่พุ่งมาทั้งปีร่วงกระจาย คนแห่ขายพร้อมกัน", hit: { SAFE: 0, BOND: 0.02, EQUITY: -0.14, TECH: -0.42, GOLD: 0.03, PROPERTY: -0.03, CRYPTO: -0.45 } },
+  { id: "war", e: "🔥", name: "สงครามพลังงาน", text: "ราคาน้ำมันพุ่ง ค่าน้ำค่าไฟเดือนหน้าแพงขึ้น", hit: { SAFE: 0, BOND: -0.02, EQUITY: -0.15, TECH: -0.18, GOLD: 0.12, PROPERTY: -0.04, CRYPTO: -0.2 }, costUp: 1 },
+  { id: "virus", e: "🦠", name: "โรคระบาดใหญ่", text: "ทุกคนต้องอยู่บ้าน ร้านค้าปิด ฟรีแลนซ์งานหาย", hit: { SAFE: 0, BOND: 0.03, EQUITY: -0.25, TECH: -0.1, GOLD: 0.06, PROPERTY: -0.12, CRYPTO: -0.3 }, incomeHit: { freelance: 0.35, shop: 0.4 } },
+  { id: "flood", e: "🌊", name: "น้ำท่วมใหญ่", text: "น้ำท่วมหนัก อสังหาเสียหาย ต้องซ่อมบ้าน", hit: { SAFE: 0, BOND: 0, EQUITY: -0.08, TECH: -0.06, GOLD: 0.02, PROPERTY: -0.2, CRYPTO: -0.05 }, cost: 0.12 },
+];
+// Life events arrive on the phone. Bills become forced quests at a shop; social ones are invitations; good ones pay straight in.
+const EVENTS = [
+  { id: "phone", cat: "bill", e: "📱", name: "จอมือถือแตก", to: "phone", cost: [0.06, 0.1], text: ["มือถือหลุดมือ จอแตกเป็นใยแมงมุม", "{a}ทำมือถือตกน้ำ ต้องซ่อมด่วน"], a: ["แมว", "หลาน", "ตัวเอง"] },
+  { id: "car", cat: "bill", e: "🚗", name: "รถเสียกลางทาง", to: "garage", cost: [0.1, 0.18], text: ["{a}พังกลางทาง ช่างบอกต้องเปลี่ยนอะไหล่", "ยางระเบิดพร้อม{a}รวน"], a: ["รถ", "มอเตอร์ไซค์", "เกียร์"] },
+  { id: "sick", cat: "bill", tag: "health", e: "🤒", name: "ไข้หวัดใหญ่", to: "clinic", cost: [0.04, 0.08], text: ["ไข้ขึ้นสูง ต้องไปหาหมอ", "ป่วยหนักจนต้องหยุดงาน ค่ายาค่าหมอมาเต็ม"] },
+  { id: "tooth", cat: "bill", tag: "health", e: "🦷", name: "ปวดฟันกะทันหัน", to: "clinic", cost: [0.04, 0.07], text: ["ฟันผุลึก ต้อง{a}", "เคี้ยว{b}แล้วฟันบิ่น"], a: ["รักษารากฟัน", "อุดฟันหลายซี่"], b: ["น้ำแข็ง", "กระดูกไก่"] },
+  { id: "fridge", cat: "bill", e: "🧊", name: "เครื่องใช้ไฟฟ้าพัง", to: "phone", cost: [0.08, 0.14], text: ["{a}ที่บ้านเสียกลางหน้าร้อน", "{a}ดับไปเฉยๆ ช่างบอกซ่อมไม่คุ้ม"], a: ["ตู้เย็น", "แอร์", "เครื่องซักผ้า"] },
+  { id: "pet", cat: "bill", tag: "health", e: "🐈", name: "สัตว์เลี้ยงป่วย", to: "vet", cost: [0.05, 0.1], text: ["{a}ไม่ยอมกินข้าว ต้องพาไปหาหมอ", "{a}กินของแปลกเข้าไป ต้องผ่าตัดเล็ก"], a: ["น้องแมว", "น้องหมา"] },
+  { id: "fine", cat: "bill", e: "🚔", name: "ใบสั่งมาถึงบ้าน", to: "police", cost: [0.02, 0.03], text: ["ลืมไปแล้วว่าเคยฝ่าไฟแดง ใบสั่งมาถึงบ้าน", "จอดรถผิดที่ โดนล็อกล้อ"] },
+  { id: "shopfix", cat: "bill", e: "🔧", name: "ร้านต้องซ่อม", to: "garage", cost: [0.08, 0.15], when: (s) => s.cls === "shop", text: ["หลังคาร้านรั่ว ของเปียกเสียหาย", "ตู้แช่ของร้านพัง ต้องซื้อใหม่"] },
+  { id: "wedding", cat: "social", e: "💌", name: "การ์ดแต่งงาน", to: "hall", cost: [0.03, 0.05], mp: 6, text: ["{a}ส่งการ์ดแต่งงานมา ไปร่วมงานที่ฮอลล์ไหม", "การ์ดแต่งงาน{a}มาพร้อมกันสองใบ!"], a: ["เพื่อนสนิท", "เพื่อนสมัยมัธยม", "รุ่นพี่ที่ทำงาน"] },
+  { id: "trip", cat: "social", e: "🏝️", name: "เพื่อนชวนเที่ยว", to: "station", cost: [0.08, 0.13], mp: 16, text: ["แก๊งเพื่อนชวนไป{a} 3 วัน 2 คืน นัดเจอที่สถานี", "ตั๋วโปรไป{a} ราคาดีมาก ไปกันไหม"], a: ["ทะเล", "ภูเขา", "ต่างประเทศใกล้ๆ"] },
+  { id: "concert", cat: "social", e: "🎤", name: "คอนเสิร์ตในดวงใจ", to: "hall", cost: [0.06, 0.1], mp: 18, text: ["ศิลปินที่ชอบมาเปิดคอนเสิร์ตครั้งแรก!", "บัตรคอนเสิร์ตรอบพิเศษเพิ่งเปิดขาย"] },
+  { id: "family", cat: "social", e: "🎂", name: "วันเกิดคนที่บ้าน", to: "food", cost: [0.03, 0.05], mp: 10, text: ["วันเกิด{a} ไปเลี้ยงข้าวที่ศูนย์อาหารกันไหม", "{a}อยากกินข้าวนอกบ้านด้วยกัน"], a: ["แม่", "พ่อ", "น้อง"] },
+  { id: "merit", cat: "social", e: "🙏", name: "งานบุญ", to: "temple", cost: [0.02, 0.04], mp: 6, text: ["ญาติจัดงานบวช ชวนไปร่วมทำบุญที่วัด", "ที่ทำงานจัดกฐิน ร่วมทำบุญด้วยไหม"] },
+  { id: "bonus", cat: "good", e: "🎁", name: "ค่าคอมมิชชันพิเศษ", amt: [0.06, 0.15], when: (s) => s.cls !== "gov", text: ["ปิดงานใหญ่ได้ ได้ค่าคอมพิเศษ!", "ลูกค้าประทับใจ ให้ทิปก้อนโต"] },
+  { id: "tax", cat: "good", e: "🏦", name: "ได้เงินคืนภาษี", amt: [0.04, 0.08], text: ["ยื่นภาษีครบ ได้เงินคืนเข้าบัญชี"] },
+  { id: "lotto", cat: "good", e: "🎫", name: "ถูกรางวัลเล็กๆ", amt: [0.02, 0.04], text: ["ถูกรางวัลเลขท้ายเล็กๆ ดีใจทั้งวัน", "จับฉลากงานบริษัทได้บัตรกำนัล"] },
+  { id: "shopboom", cat: "good", e: "📈", name: "ร้านขายดี", amt: [0.12, 0.25], when: (s) => s.cls === "shop", text: ["มีคนรีวิวร้านในโซเชียล ลูกค้าแน่นร้าน!"] },
+];
+// Meals: 2–3 a day, ฿40–200 each (name, low, high, emoji, how common)
+const MENU = [
+  ["โจ๊กหมู", 40, 50, "🥣", 6], ["ข้าวมันไก่", 45, 60, "🍗", 9], ["กะเพราไก่ไข่ดาว", 50, 70, "🍳", 10], ["ก๋วยเตี๋ยวเรือ", 40, 60, "🍜", 9],
+  ["ข้าวขาหมู", 50, 70, "🍖", 6], ["ข้าวแกง 2 อย่าง", 45, 65, "🍛", 9], ["ข้าวไข่เจียว", 40, 50, "🥚", 7], ["ผัดไทยกุ้งสด", 60, 90, "🍤", 5],
+  ["ส้มตำไก่ย่าง", 80, 140, "🥗", 4], ["ราเมง", 120, 180, "🍥", 3], ["สุกี้น้ำ", 90, 140, "🍲", 3], ["ข้าวหน้าเนื้อ", 120, 180, "🥩", 2],
+  ["ชาบูบุฟเฟต์", 180, 200, "🫕", 1.5], ["ซูชิเซต", 150, 200, "🍣", 1.5], ["พิซซ่าถาดเล็ก", 150, 200, "🍕", 1.2],
+];
+const MEAL_AVG = (() => { const w = MENU.reduce((a, m) => a + m[4], 0); return MENU.reduce((a, m) => a + m[4] * (m[1] + m[2]) / 2, 0) / w; })();
+// Small everyday money moments while walking (no pop-up, just a ticker line)
+const SMALL = [
+  { e: "☕", t: "แวะซื้อกาแฟเย็น", c: [55, 85], mp: 1 }, { e: "🛵", t: "ค่าวินมอเตอร์ไซค์", c: [25, 40] }, { e: "🚇", t: "เติมบัตรรถไฟฟ้า", c: [100, 200] },
+  { e: "🧋", t: "ชานมไข่มุกแก้วโปรด", c: [45, 75], mp: 2 }, { e: "🧻", t: "ของใช้ในบ้านหมด ซื้อเติม", c: [120, 260] }, { e: "💊", t: "ยาสามัญติดบ้าน", c: [80, 150] },
+  { e: "🅿️", t: "ค่าจอดรถ", c: [20, 60] }, { e: "🧺", t: "ร้านซักผ้าหยอดเหรียญ", c: [60, 100] }, { e: "🎁", t: "ของฝากเพื่อนร่วมงาน", c: [100, 250], mp: 1 },
+  { e: "🍦", t: "ไอศกรีมคลายร้อน", c: [25, 60], mp: 1 }, { e: "📶", t: "เติมเน็ตเพราะเน็ตหมด", c: [50, 100] }, { e: "🥤", t: "น้ำเปล่ากับขนม", c: [20, 45] },
+  { e: "💸", t: "เพื่อนโอนคืนค่าข้าว", g: [80, 200] }, { e: "🪙", t: "ได้เงินคืนแคชแบ็ก", g: [20, 60] },
+  { e: "📦", t: "ขายของมือสองออนไลน์ได้", g: [150, 500] }, { e: "🍀", t: "เจอแบงก์ยี่สิบในกระเป๋ากางเกง", g: [20, 20] },
+];
+// Quest board pool: everyday life
+const QUESTS = [
+  { id: "deliver", kind: "gig", e: "📮", title: "ส่งพัสดุด่วน", text: "รับกล่องที่ไปรษณีย์ ไปส่งที่ออฟฟิศ", from: "post", to: "office", pay: 0.014 },
+  { id: "beans", kind: "gig", e: "☕", title: "ช่วยร้านกาแฟขนเมล็ด", text: "รับกระสอบที่ตลาดสด ไปส่งที่คาเฟ่", from: "market", to: "cafe", pay: 0.012 },
+  { id: "bouquet", kind: "gig", e: "💐", title: "ส่งช่อดอกไม้ให้ลูกค้า", text: "รับช่อที่ร้านดอกไม้ ไปส่งที่ฮอลล์จัดงาน", from: "flower", to: "hall", pay: 0.012 },
+  { id: "rider", kind: "gig", e: "🍱", title: "ไรเดอร์ส่งอาหาร", text: "รับข้าวกล่องที่ศูนย์อาหาร ไปส่งที่ธนาคาร", from: "food", to: "bank", pay: 0.011 },
+  { id: "parts", kind: "gig", e: "🔩", title: "ส่งอะไหล่", text: "รับของที่อู่ซ่อม ไปส่งร้านมือถือ", from: "garage", to: "phone", pay: 0.012 },
+  { id: "tutor", kind: "gig", e: "✏️", title: "สอนการบ้านน้องข้างบ้าน", text: "ไปสอนที่ห้องสมุด (เหนื่อยนิดหน่อย)", to: "library", pay: 0.016, mp: -2 },
+  { id: "j_fruit", kind: "job", game: "fruit", e: "🍎", title: "งานเสริม: คัดผลไม้", text: "ตลาดสดหาคนช่วยคัดผลไม้ (มินิเกม 20 วิ)", to: "market" },
+  { id: "j_cash", kind: "job", game: "cash", e: "🧮", title: "งานเสริม: แคชเชียร์", text: "ร้านสะดวกซื้อขาดคนทอนเงิน (มินิเกม 25 วิ)", to: "store" },
+  { id: "j_match", kind: "job", game: "match", e: "🧩", title: "งานเสริม: จัดหนังสือ", text: "ห้องสมุดให้ช่วยจับคู่หนังสือเข้าหมวด (มินิเกม 30 วิ)", to: "library" },
+  { id: "grocery", kind: "errand", e: "🛒", title: "ซื้อของเข้าตู้เย็น", text: "ซื้อวัตถุดิบที่ซูเปอร์ ทำกินเองได้ 12 มื้อ", to: "super", cost: 650, fridge: 12 },
+  { id: "haircut", kind: "errand", e: "💇", title: "ตัดผมให้ดูดี", text: "ร้านตัดผมมีคิวว่างพอดี", to: "barber", cost: 250, mp: 6 },
+  { id: "momgift", kind: "errand", e: "🌷", title: "ดอกไม้วันเกิดคุณแม่", text: "เลือกช่อสวยๆ ที่ร้านดอกไม้", to: "flower", cost: 450, mp: 8 },
+  { id: "movie", kind: "errand", e: "🎬", title: "ดูหนังรอบค่ำ", text: "หนังที่รอมานานเข้าโรงที่ฮอลล์แล้ว", to: "hall", cost: 220, mp: 6 },
+  { id: "checkup", kind: "errand", e: "🩺", title: "ตรวจสุขภาพประจำปี", text: "ป้องกันไว้ก่อน เดือนนี้ป่วยยากขึ้น", to: "clinic", costPct: 0.02, check: 1 },
+  { id: "study", kind: "errand", e: "🔍", title: "อ่านข้อมูลมอนในทีม", text: "ศึกษาค่าพลังจริงที่ห้องสมุด", to: "library", cost: 0, study: 1 },
+  { id: "merit", kind: "errand", e: "🙏", title: "ทำบุญที่วัด", text: "ใส่บาตร ทำใจให้สบาย", to: "temple", cost: 100, mp: 4 },
+];
+// Things you can buy inside shops: [emoji, name, price or "8%" of salary, happiness, effect]
+const SHOP = {
+  store: [["🥤", "น้ำ + ขนม", 45, 1]],
+  cafe: [["☕", "กาแฟเย็น", 75, 3], ["🍰", "เค้ก + กาแฟ", 180, 6]],
+  mall: [["🛍️", "ช้อปคลายเครียด", "8%", 15, "mallOnce"], ["👟", "รองเท้าคู่ใหม่", 1290, 7]],
+  food: [["🍛", "เลี้ยงข้าวเพื่อน", 350, 6]],
+  barber: [["💇", "ตัดผม", 250, 5]],
+  gym: [["🏋️", "สมาชิกฟิตเนส 1 เดือน", 990, 8, "gym"]],
+  phone: [["🎧", "หูฟังไร้สายรุ่นใหม่", 1590, 8]],
+  flower: [["💐", "ดอกไม้ให้ตัวเอง", 199, 3]],
+  garage: [["🔧", "เช็กสภาพรถ", 500, 0, "carcheck"]],
+  temple: [["🙏", "ทำบุญ", 100, 3]],
+  station: [["🚆", "เที่ยววันเดียว (ใช้เวลา 1 วัน)", 600, 10, "daytrip"]],
+  hall: [["🎬", "ดูหนัง", 220, 5]],
+  super: [["🛒", "วัตถุดิบทำกินเอง 12 มื้อ", 650, 0, "fridge12"]],
+  market: [["🥬", "ผักผลไม้สด ทำกินเอง 4 มื้อ", 180, 1, "fridge4"]],
+  vet: [["🐾", "อาหารสัตว์เลี้ยง", 350, 2]],
+  post: [["✉️", "ส่งโปสการ์ดหาเพื่อน", 30, 2]],
+};
+const NPCS = [
+  { id: "friend", e: "🧑", name: "เพื่อนเก่า", x: 6, y: 12, talk: "lend" },
+  { id: "aunt", e: "👵", name: "ป้าข้างบ้าน", x: 34, y: 17, talk: "chain" },
+  { id: "sales", e: "💁", name: "พนักงานขาย", x: 55, y: 22, talk: "install" },
+  { id: "coach", e: "🧑‍🏫", name: "โค้ชคอร์สออนไลน์", x: 28, y: 12, talk: "course" },
+  { id: "elder", e: "🧓", name: "ลุงนักออม", x: 24, y: 20, talk: "tip" },
+];
+const TIPS = [
+  "มีเงินสำรองไว้ เรื่องด่วนมาก็ไม่ต้องรูดบัตร",
+  "ค่าธรรมเนียมเล็กๆ ถือนานๆ ก็กินเยอะ",
+  "การันตีกำไรสูง ไม่มีเสี่ยง เร่งให้รีบ = ระวัง!",
+  "ทำกับข้าวกินเองบางมื้อ ประหยัดได้เยอะ",
+  "ก่อนตัดสินใจ อ่านให้ครบ ถามคนรู้จริง ไม่ต้องรีบ",
+  "แบ่งเงินให้ความสุขบ้าง จะได้ไม่หมดไฟ",
+];
+
+/* ================= town map ================= */
+const TS = 32, MW = 60, MH = 44;
+const G = 0, TALL = 1, PATH = 2, WATER = 3, TREE = 4, FLOWER = 5, WALL = 6, DOOR = 7, ROAD = 8, PAVE = 9, BOARD = 10;
+const RH = [13, 29, 39], RV = [19, 40];          // two-lane roads
+const BOARD_POS = { x: 27, y: 17 };
+const BUILDINGS = [
+  // every door faces down onto a road or the square (the art always shows the door at the bottom)
+  // north row: bottom y=11, road y=13
+  { id: "home", name: "บ้าน", e: "🏠", x: 2, y: 7, w: 4, h: 5, roof: "#ff7a59", wall: "#fff3e6", door: "down" },
+  { id: "store", name: "ร้านสะดวกซื้อ", e: "🏪", x: 7, y: 7, w: 4, h: 5, roof: "#22b573", wall: "#effff5", door: "down" },
+  { id: "cafe", name: "คาเฟ่", e: "☕", x: 12, y: 7, w: 4, h: 5, roof: "#a0643c", wall: "#fff6ec", door: "down" },
+  { id: "office", name: "ออฟฟิศ", e: "💼", x: 22, y: 6, w: 6, h: 6, roof: "#8a5cff", wall: "#f3eeff", door: "down" },
+  { id: "jobs", name: "ศูนย์งานเสริม", e: "🧰", x: 29, y: 7, w: 5, h: 5, roof: "#ff9f1c", wall: "#fff7e8", door: "down" },
+  { id: "post", name: "ไปรษณีย์", e: "📮", x: 35, y: 7, w: 4, h: 5, roof: "#e63946", wall: "#fff1f1", door: "down" },
+  { id: "bank", name: "ธนาคาร", e: "🏦", x: 43, y: 6, w: 6, h: 6, roof: "#2f8dff", wall: "#eef6ff", door: "down" },
+  { id: "mall", name: "ห้าง", e: "🛍️", x: 50, y: 6, w: 7, h: 6, roof: "#12c2c2", wall: "#e9fbfb", door: "down" },
+  // east middle: bottom y=21, opens onto the lane at y=22
+  { id: "super", name: "ซูเปอร์มาร์เก็ต", e: "🛒", x: 43, y: 17, w: 4, h: 5, roof: "#ff6b6b", wall: "#fff4f4", door: "down" },
+  { id: "market", name: "ตลาดสด", e: "🥬", x: 49, y: 17, w: 5, h: 5, roof: "#f4a261", wall: "#fff6ee", door: "down" },
+  // middle row: bottom y=27, road y=29
+  { id: "clinic", name: "คลินิก", e: "🏥", x: 2, y: 23, w: 4, h: 5, roof: "#ff4f9a", wall: "#fff0f6", door: "down" },
+  { id: "library", name: "ห้องสมุด", e: "📚", x: 7, y: 23, w: 4, h: 5, roof: "#ffb21e", wall: "#fff8e6", door: "down" },
+  { id: "vet", name: "คลินิกสัตว์", e: "🐾", x: 12, y: 23, w: 4, h: 5, roof: "#7bc950", wall: "#f4ffec", door: "down" },
+  { id: "food", name: "ศูนย์อาหาร", e: "🍛", x: 22, y: 23, w: 4, h: 5, roof: "#e76f51", wall: "#fff3ee", door: "down" },
+  { id: "barber", name: "ร้านตัดผม", e: "💇", x: 27, y: 23, w: 4, h: 5, roof: "#6c63ff", wall: "#f2f1ff", door: "down" },
+  { id: "gym", name: "ฟิตเนส", e: "🏋️", x: 32, y: 23, w: 5, h: 5, roof: "#264653", wall: "#eef6f8", door: "down" },
+  { id: "phone", name: "ร้านมือถือ & เครื่องใช้ไฟฟ้า", short: "ร้านมือถือ", e: "📱", x: 43, y: 23, w: 5, h: 5, roof: "#3a86ff", wall: "#eef4ff", door: "down" },
+  { id: "flower", name: "ร้านดอกไม้", e: "💐", x: 50, y: 23, w: 4, h: 5, roof: "#ff8fab", wall: "#fff2f6", door: "down" },
+  // south row: bottom y=37, road y=39
+  { id: "garage", name: "อู่ซ่อมรถ", e: "🔧", x: 2, y: 33, w: 5, h: 5, roof: "#6d6875", wall: "#f4f2f6", door: "down" },
+  { id: "police", name: "สำนักงานเขต", e: "🚔", x: 8, y: 33, w: 4, h: 5, roof: "#1d3557", wall: "#eef2f8", door: "down" },
+  { id: "temple", name: "โบสถ์", e: "⛪", x: 13, y: 33, w: 4, h: 5, roof: "#f4b400", wall: "#fffbe8", door: "down" },
+  { id: "station", name: "สถานีรถไฟฟ้า", e: "🚆", x: 22, y: 32, w: 7, h: 6, roof: "#00a6a6", wall: "#eafbfb", door: "down" },
+  { id: "hall", name: "ฮอลล์จัดงาน & โรงหนัง", short: "ฮอลล์", e: "🎪", x: 31, y: 32, w: 6, h: 6, roof: "#b5179e", wall: "#fdf0fb", door: "down" },
+];
+const BMAP = Object.fromEntries(BUILDINGS.map((b) => [b.id, b]));
+const bname = (id) => (BMAP[id].short || BMAP[id].name);
+const map = [];
+const LAMPS = [], BENCHES = [], TREES = [];
+function seeded(i) { const x = Math.sin(i * 12.9898) * 43758.5453; return x - Math.floor(x); }
+function genMap() {
+  for (let y = 0; y < MH; y++) { map[y] = []; for (let x = 0; x < MW; x++) map[y][x] = G; }
+  const set = (x, y, t) => { if (x >= 0 && y >= 0 && x < MW && y < MH) map[y][x] = t; };
+  const isRoad = (x, y) => RH.some((r) => y === r || y === r + 1) || RV.some((r) => x === r || x === r + 1);
+  // parks: tall grass meadows where wild monsters live
+  for (let y = 16; y <= 21; y++) for (let x = 2; x <= 17; x++) set(x, y, TALL);
+  for (let y = 17; y <= 19; y++) for (let x = 8; x <= 11; x++) set(x, y, WATER);
+  for (let y = 31; y <= 37; y++) for (let x = 43; x <= 57; x++) set(x, y, TALL);
+  for (let y = 33; y <= 35; y++) for (let x = 48; x <= 52; x++) set(x, y, WATER);
+  // town square
+  for (let y = 15; y <= 22; y++) for (let x = 22; x <= 39; x++) set(x, y, PAVE);
+  for (let y = 18; y <= 19; y++) for (let x = 30; x <= 31; x++) set(x, y, WATER);
+  set(BOARD_POS.x, BOARD_POS.y, BOARD);
+  for (let y = 1; y < MH - 1; y++) for (let x = 1; x < MW - 1; x++) if (isRoad(x, y)) set(x, y, ROAD);
+  for (let x = 0; x < MW; x++) { set(x, 0, TREE); set(x, MH - 1, TREE); }
+  for (let y = 0; y < MH; y++) { set(0, y, TREE); set(MW - 1, y, TREE); }
+  BUILDINGS.forEach((b) => { for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) set(x, y, WALL); });
+  BUILDINGS.forEach((b) => {
+    b.dx = b.x + Math.floor(b.w / 2); b.dy = b.y + b.h - 1;
+    for (let y = b.dy + 1; y < MH && [G, TALL, FLOWER].includes(map[y][b.dx]); y++) set(b.dx, y, PATH);
+    set(b.dx, b.dy, DOOR);
+  });
+  BENCHES.length = 0; [[23, 16], [38, 16], [23, 21], [38, 21]].forEach(([x, y]) => { if (map[y][x] === PAVE) BENCHES.push([x, y]); });
+  for (let i = 0; i < 700; i++) {
+    const x = 1 + Math.floor(seeded(i) * (MW - 2)), y = 1 + Math.floor(seeded(i + 999) * (MH - 2));
+    if (map[y][x] !== G) continue;
+    if ([[0, 1], [1, 0], [0, -1], [-1, 0]].some(([a, c]) => map[y + c] && [ROAD, PATH, DOOR].includes(map[y + c][x + a]))) continue;
+    if (BUILDINGS.some((b) => x >= b.x - 1 && x <= b.x + b.w && y >= b.y - 1 && y <= b.y + b.h)) continue;
+    if (NPCS.some((n) => Math.abs(n.x - x) + Math.abs(n.y - y) < 3)) continue;
+    set(x, y, seeded(i + 7) < 0.5 ? TREE : FLOWER);
+  }
+  TREES.length = 0; for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) if (map[y][x] === TREE) TREES.push([x, y, seeded(x * 7 + y * 13) < 0.28 ? "p-tree-pine" : "p-tree-round"]);
+  for (const r of RH) for (let x = 3; x < MW - 2; x += 7) if (map[r - 1][x] === G || map[r - 1][x] === FLOWER) LAMPS.push([x, r - 1]);
+  for (const r of RV) for (let y = 4; y < MH - 2; y += 7) if (map[y][r - 1] === G || map[y][r - 1] === FLOWER) LAMPS.push([r - 1, y]);
+}
+
+/* ---------- static map art, pre-rendered once ---------- */
+let mapCanvas = null; const DPR = Math.min(2, window.devicePixelRatio || 1), MDPR = Math.min(1.5, DPR);
+function roundRect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+function shade(hex, amt) { const n = parseInt(hex.slice(1), 16), c = (v) => clamp(v + amt, 0, 255); return `rgb(${c(n >> 16)},${c((n >> 8) & 255)},${c(n & 255)})`; }
+function paintMap() {
+  mapCanvas = document.createElement("canvas"); mapCanvas.width = MW * TS * MDPR; mapCanvas.height = MH * TS * MDPR;
+  const g = mapCanvas.getContext("2d"); g.scale(MDPR, MDPR);
+  const pat = {};
+  for (const k of ["grass", "tall", "path", "road", "plaza", "water"]) { const im = img("t-" + k); if (im) { const p = g.createPattern(im, "repeat"); if (p.setTransform) p.setTransform(new DOMMatrix().scale(0.5)); pat[k] = p; } }
+  const tex = (k, px, py, fb) => { g.fillStyle = pat[k] || fb; g.fillRect(px, py, TS, TS); };
+  for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
+    const t = map[y][x], px = x * TS, py = y * TS, r = seeded(x * 31 + y * 17);
+    tex("grass", px, py, (x + y) % 2 ? "#7fdc6f" : "#87e377");
+    if (t === PATH || t === DOOR) tex("path", px, py, "#f6dfa8");
+    if (t === PAVE || t === BOARD) tex("plaza", px, py, (x + y) % 2 ? "#f3e9d8" : "#ece0cb");
+    if (t === ROAD) {
+      tex("road", px, py, "#8d96a8");
+      const hr = RH.includes(y) ? "top" : RH.includes(y - 1) ? "bot" : null, vr = RV.includes(x) ? "l" : RV.includes(x - 1) ? "r" : null;
+      g.fillStyle = "rgba(255,255,255,.8)";
+      if (hr === "bot" && !vr && x % 2 === 0) g.fillRect(px + 4, py - 1, 16, 2);
+      if (vr === "r" && !hr && y % 2 === 0) g.fillRect(px - 1, py + 4, 2, 16);
+      g.fillStyle = "rgba(40,30,50,.35)";
+      if (hr === "top" && !vr) g.fillRect(px, py, TS, 2); if (hr === "bot" && !vr) g.fillRect(px, py + TS - 2, TS, 2);
+      if (vr === "l" && !hr) g.fillRect(px, py, 2, TS); if (vr === "r" && !hr) g.fillRect(px + TS - 2, py, 2, TS);
+    }
+    if (t === TALL) { tex("tall", px, py, "#4cbf5a"); g.fillStyle = "rgba(20,95,40,.22)"; g.fillRect(px, py, TS, TS); }
+    if (t === WATER) tex("water", px, py, "#2a9bf0");
+    if (t === FLOWER) {
+      const im = img(r < 0.5 ? "p-flowers" : "p-bush");
+      if (im) { const dw = TS * 1.05, dh = dw * im.naturalHeight / im.naturalWidth; g.drawImage(im, px + TS / 2 - dw / 2, py + TS - dh + 2, dw, dh); }
+      else { const cols = ["#ff5c8a", "#ffd23f", "#ffffff", "#b77bff"]; for (let k = 0; k < 3; k++) { g.fillStyle = cols[Math.floor(seeded(x + y + k) * 4)]; g.beginPath(); g.arc(px + 8 + k * 8, py + 12 + (k % 2) * 8, 3, 0, 7); g.fill(); } }
+    }
+  }
+  // ponds sit over their water tiles
+  const over = (k, x0, y0, wT, hT, pad) => { const im = img(k); if (!im) return; const dw = (wT + pad) * TS, dh = dw * im.naturalHeight / im.naturalWidth; g.drawImage(im, x0 * TS + wT * TS / 2 - dw / 2, y0 * TS + hT * TS / 2 - dh / 2 + 4, dw, dh); };
+  over("p-pond", 8, 17, 4, 3, 1.4); over("p-lake", 48, 33, 5, 3, 1.6);
+  g.textAlign = "center"; g.textBaseline = "alphabetic";
+  const sign = (x, y, s) => { g.font = `600 13px Prompt, ${EMO}`; const w = g.measureText(s).width + 16; g.fillStyle = "rgba(255,255,255,.92)"; roundRect(g, x * TS - w / 2, y * TS - 11, w, 22, 11); g.fill(); g.fillStyle = "#0f1b3d"; g.fillText(s, x * TS, y * TS + 5); };
+  sign(10, 15.55, "🌾 ทุ่งลงทุน"); sign(50.5, 30.6, "🌾 ทุ่งลงทุนใหญ่"); sign(33, 15.55, "⛲ ลานกลางเมือง");
+  BUILDINGS.forEach((b) => {
+    const px = b.x * TS, py = b.y * TS, w = b.w * TS, h = b.h * TS, im = img("b-" + b.id);
+    b.wins = [];
+    if (im) {
+      const dh = h + 6, dw = dh * im.naturalWidth / im.naturalHeight, cx = (b.dx + 0.5) * TS;
+      g.fillStyle = "rgba(20,40,30,.22)"; g.beginPath(); g.ellipse(cx, py + h - 3, dw * 0.46, 7, 0, 0, 7); g.fill();
+      g.drawImage(im, cx - dw / 2, py + h - dh, dw, dh);
+    } else {
+      g.fillStyle = "rgba(10,40,80,.18)"; roundRect(g, px + 4, py + 8, w, h, 10); g.fill();
+      g.fillStyle = b.wall; roundRect(g, px, py + h * 0.38, w, h * 0.62, 8); g.fill();
+      const grd = g.createLinearGradient(0, py, 0, py + h * 0.42); grd.addColorStop(0, shade(b.roof, 45)); grd.addColorStop(1, b.roof);
+      g.fillStyle = grd; roundRect(g, px - 4, py, w + 8, h * 0.42, 12); g.fill();
+      g.fillStyle = "#7a4a2a"; roundRect(g, b.dx * TS + 6, b.dy * TS + 6, 20, 24, 5); g.fill();
+    }
+    let label = b.short || b.name; g.font = `700 13px Prompt, ${EMO}`;
+    if (g.measureText(label).width > w + 6) g.font = `700 11.5px Prompt, ${EMO}`;
+    const lw = g.measureText(label).width + 14, lx = (b.dx + 0.5) * TS;
+    g.fillStyle = "rgba(255,255,255,.94)"; roundRect(g, lx - lw / 2, py - 4, lw, 21, 10.5); g.fill();
+    g.strokeStyle = b.roof; g.lineWidth = 2; g.stroke();
+    g.fillStyle = "#0f1b3d"; g.fillText(label, lx, py + 11);
+  });
+}
+// tall things drawn each frame, sorted with the player so you can walk in front of / behind them
+function propSprites(w, h, camX, camY, out) {
+  const vis = (x, y) => x * TS - camX > -80 && x * TS - camX < w + 80 && y * TS - camY > -40 && y * TS - camY < h + 140;
+  const add = (k, x, y, hT, fb) => { if (!vis(x, y)) return; out.push({ y: y + 0.9, k, x, ty: y, hT, fb }); };
+  TREES.forEach(([x, y, k]) => add(k, x, y, k === "p-tree-pine" ? 2.4 : 2.1, "tree"));
+  LAMPS.forEach(([x, y]) => add("p-lamp", x, y, 1.9, "lamp"));
+  BENCHES.forEach(([x, y]) => add("p-bench", x, y, 0.9, null));
+  add("p-fountain", 30.5, 19, 3, null); add("p-board", BOARD_POS.x, BOARD_POS.y, 1.7, "board");
+}
+function drawProp(o, camX, camY) {
+  const im = img(o.k), bx = o.x * TS - camX + TS / 2, by = (o.ty + 1) * TS - camY;
+  if (im) {
+    const dh = o.hT * TS, dw = dh * im.naturalWidth / im.naturalHeight;
+    if (o.fb === "tree") { ctx.fillStyle = "rgba(0,50,0,.2)"; ctx.beginPath(); ctx.ellipse(bx, by - 4, dw * 0.32, 5, 0, 0, 7); ctx.fill(); }
+    ctx.drawImage(im, bx - dw / 2, by - dh + 2, dw, dh); return;
+  }
+  if (o.fb === "tree") { ctx.fillStyle = "#8a5a32"; ctx.fillRect(bx - 3, by - 15, 6, 10); ctx.fillStyle = "#24a148"; ctx.beginPath(); ctx.arc(bx, by - 20, 12, 0, 7); ctx.fill(); }
+  if (o.fb === "lamp") { ctx.fillStyle = "#4a5068"; ctx.fillRect(bx - 2, by - 26, 4, 22); ctx.fillStyle = "#fff3c4"; ctx.beginPath(); ctx.arc(bx, by - 26, 5, 0, 7); ctx.fill(); }
+  if (o.fb === "board") { ctx.fillStyle = "#c98a4b"; roundRect(ctx, bx - 22, by - 34, 44, 26, 5); ctx.fill(); }
+}
+
+/* ================= world renderer + movement ================= */
+const cv = $("#world"), ctx = cv.getContext("2d");
+const P = { x: 5, y: 9, fx: 5, fy: 9, tx: 5, ty: 9, dir: "down", t: 1, walk: 0 };
+let mode = "title"; // title | explore | busy | phone | job
+const held = new Set();
+const floats = [];
+let hudH = 170;
+function resize() { cv.width = innerWidth * DPR; cv.height = innerHeight * DPR; }
+function hourNow() { if (!S) return 10; const f = (S.t % DAY_SEC()) / DAY_SEC(); return 7 + f * 15; } // daytime only: 07:00 → 22:00
+function nightAmt() { return 0; } // day/night turned off (changed too fast)
+function nightAmtOld(h) { h = h % 24; if (h >= 7 && h < 17) return 0; if (h >= 17 && h < 19) return (h - 17) / 2 * 0.3; if (h >= 19 && h < 21) return 0.3 + (h - 19) / 2 * 0.3; if (h >= 5 && h < 7) return 0.6 * (7 - h) / 2; return 0.6; }
+function camera(w, h) {
+  const freeTop = hudH + 8, freeBot = h - 175, cy = freeTop + Math.max(60, freeBot - freeTop) / 2;
+  return [clamp(P.fx * TS + TS / 2 - w / 2, 0, Math.max(0, MW * TS - w)), clamp(P.fy * TS + TS / 2 - cy, -freeTop + 10, Math.max(0, MH * TS - h + 160))];
+}
+function draw() {
+  const w = cv.width / DPR, h = cv.height / DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const [camX, camY] = camera(w, h);
+  ctx.fillStyle = "#87e377"; ctx.fillRect(0, 0, w, h);
+  if (mapCanvas) {
+    const sx = Math.max(0, camX), sy = Math.max(0, camY), ox = sx - camX, oy = sy - camY;
+    ctx.drawImage(mapCanvas, sx * MDPR, sy * MDPR, (w - ox) * MDPR, (h - oy) * MDPR, ox, oy, w - ox, h - oy);
+  }
+  const time = performance.now() / 1000;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  const scr = (x, y) => [x * TS - camX + TS / 2, y * TS - camY + TS / 2];
+  // everything that stands up, sorted by its feet so nearer things cover farther ones
+  const spr = []; propSprites(w, h, camX, camY, spr);
+  if (S) S.wild.forEach((m) => spr.push({ y: m.y + 0.5, wild: m }));
+  NPCS.forEach((n) => spr.push({ y: n.y + 0.5, npc: n }));
+  spr.push({ y: P.fy + 0.55, hero: true });
+  spr.sort((a, b) => a.y - b.y);
+  const [hx, hy] = scr(P.fx, P.fy);
+  for (const o of spr) {
+    if (o.hero) { ctx.fillStyle = "rgba(0,40,0,.22)"; ctx.beginPath(); ctx.ellipse(hx, hy + 13, 11, 4, 0, 0, 7); ctx.fill(); drawHero(hx, hy); continue; }
+    if (o.wild) {
+      const m = o.wild, [sx, sy] = scr(m.x, m.y); if (sx < -40 || sy < -60 || sx > w + 40 || sy > h + 40) continue;
+      ctx.fillStyle = "rgba(0,40,0,.22)"; ctx.beginPath(); ctx.ellipse(sx, sy + 12, 11, 4, 0, 0, 7); ctx.fill();
+      const im = img("m-" + m.sp), bob = Math.sin(time * 3 + m.x) * 2;
+      if (im) { const dh = 38, dw = dh * im.naturalWidth / im.naturalHeight; ctx.drawImage(im, sx - dw / 2, sy + 14 - dh + bob, dw, dh); }
+      else { ctx.font = `24px ${EMO}`; ctx.fillText(SPECIES[m.sp].e, sx, sy - 2 + bob); }
+      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(sx + 14, sy - 26, 8, 0, 7); ctx.fill(); ctx.fillStyle = "#8a5cff"; ctx.font = "700 12px Prompt, sans-serif"; ctx.fillText("?", sx + 14, sy - 25);
+      continue;
+    }
+    if (o.npc) {
+      const n = o.npc, [sx, sy] = scr(n.x, n.y); if (sx < -40 || sy < -60 || sx > w + 40 || sy > h + 40) continue;
+      ctx.fillStyle = "rgba(0,40,0,.2)"; ctx.beginPath(); ctx.ellipse(sx, sy + 12, 10, 4, 0, 0, 7); ctx.fill();
+      const im = img("n-" + n.id), sw = Math.sin(time * 2 + n.x) * 1;
+      if (im) { const dh = 50, dw = dh * im.naturalWidth / im.naturalHeight; ctx.drawImage(im, sx - dw / 2, sy + 14 - dh + sw, dw, dh); }
+      else { ctx.font = `26px ${EMO}`; ctx.fillText(n.e, sx, sy - 2 + sw); }
+      if (S && !S.talked.has(n.id)) {
+        const by = sy - 46 + Math.sin(time * 4) * 2;
+        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(sx + 12, by, 9, 0, 7); ctx.fill();
+        ctx.fillStyle = "#1e7bff"; ctx.font = "700 14px Prompt, sans-serif"; ctx.fillText("!", sx + 12, by + 1);
+      }
+      continue;
+    }
+    drawProp(o, camX, camY);
+  }
+  // night
+  const dark = S ? nightAmt(hourNow()) : 0;
+  if (dark > 0.01) {
+    const hr = hourNow() % 24, dusk = hr >= 16.5 && hr < 20;
+    ctx.fillStyle = dusk ? `rgba(70,40,110,${dark})` : `rgba(14,22,70,${dark})`; ctx.fillRect(0, 0, w, h);
+    if (dusk) { ctx.fillStyle = `rgba(255,140,60,${0.14 * (1 - Math.abs(hr - 18) / 2)})`; ctx.fillRect(0, 0, w, h); }
+    ctx.globalCompositeOperation = "lighter";
+    const glow = dark / 0.6;
+    BUILDINGS.forEach((b) => b.wins && b.wins.forEach(([x, y, ww, hh], i) => {
+      const sx = x - camX, sy = y - camY; if (sx < -30 || sy < -30 || sx > w || sy > h) return;
+      if (seeded(i * 7 + b.x) < 0.25) return;
+      ctx.fillStyle = `rgba(255,200,90,${0.5 * glow})`; ctx.fillRect(sx, sy, ww, hh);
+    }));
+    LAMPS.forEach(([x, y]) => {
+      const sx = x * TS + 16 - camX, sy = y * TS + 6 - camY; if (sx < -80 || sy < -80 || sx > w + 80 || sy > h + 80) return;
+      const g = ctx.createRadialGradient(sx, sy, 2, sx, sy + 20, 70); g.addColorStop(0, `rgba(255,220,140,${0.55 * glow})`); g.addColorStop(1, "rgba(255,220,140,0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sx, sy + 20, 70, 0, 7); ctx.fill();
+    });
+    const g = ctx.createRadialGradient(hx, hy, 4, hx, hy, 90); g.addColorStop(0, `rgba(255,240,200,${0.28 * glow})`); g.addColorStop(1, "rgba(255,240,200,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(hx, hy, 90, 0, 7); ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
+  }
+  // quest markers + edge arrow
+  if (S && mode !== "title") {
+    const tg = targets();
+    tg.forEach((t, i) => {
+      const [sx, sy0] = t.board ? scr(BOARD_POS.x, BOARD_POS.y - 1.4) : scr(t.b.dx, t.b.y - 0.9);
+      const sy = sy0 - 14 + Math.sin(time * 4 + i) * 3;
+      const col = t.kind === "forced" ? "#ef3b4f" : t.kind === "quest" ? "#ff9f1c" : t.kind === "board" ? "#12c2c2" : "#1e7bff";
+      const inside = sx > 10 && sx < w - 10 && sy > hudH + 10 && sy < h - 10;
+      if (inside) {
+        const mi = img("u-m-" + t.kind);
+        if (mi) { const dh = 34, dw = dh * mi.naturalWidth / mi.naturalHeight; ctx.drawImage(mi, sx - dw / 2, sy - dh / 2 - 2, dw, dh); }
+        else { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(sx, sy, 13, 0, 7); ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.stroke();
+        ctx.fillStyle = "#fff"; ctx.font = "700 15px Prompt, sans-serif"; ctx.fillText(t.kind === "forced" ? "!" : t.kind === "quest" ? "★" : t.kind === "board" ? "?" : "♥", sx, sy + 1); }
+        if (i === 0 && !t.board && tg.length > 1) { ctx.strokeStyle = "#1e7bff"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(sx, sy, 18 + Math.sin(time * 6) * 1.5, 0, 7); ctx.stroke(); }
+        if (t.kind === "invite" && t.ref.deadline != null) { const left = cdLeft(t.ref), txt = "⏳" + mmss(left); ctx.font = `700 13px Prompt, ${EMO}`; const tw = ctx.measureText(txt).width + 12;
+          ctx.fillStyle = left <= 10 ? "#d4243a" : "#0f1b3d"; roundRect(ctx, sx - tw / 2, sy + 16, tw, 20, 10); ctx.fill(); ctx.fillStyle = "#fff"; ctx.fillText(txt, sx, sy + 26.5); }
+      } else if (i === 0) {
+        const cx = w / 2, cy = (hudH + h - 175) / 2, ang = Math.atan2(sy - cy, sx - cx);
+        const ex = clamp(cx + Math.cos(ang) * w, 30, w - 30), ey = clamp(cy + Math.sin(ang) * h, hudH + 30, h - 190);
+        ctx.save(); ctx.translate(ex, ey); ctx.rotate(ang);
+        ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo(-10, -13); ctx.lineTo(-4, 0); ctx.lineTo(-10, 13); ctx.closePath(); ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.stroke();
+        ctx.restore();
+        const lbl = t.board ? "📋" : t.b.e + (t.kind === "invite" && t.ref.deadline != null ? " " + mmss(cdLeft(t.ref)) : "");
+        ctx.font = `18px ${EMO}`; ctx.fillText(lbl, ex - Math.cos(ang) * 26, ey - Math.sin(ang) * 26);
+      }
+    });
+  }
+  // floating money texts
+  const dt = 1 / 60;
+  for (let i = floats.length - 1; i >= 0; i--) {
+    const f = floats[i]; f.life -= dt; if (f.life <= 0) { floats.splice(i, 1); continue; }
+    const k = 1 - f.life / 1.6;
+    ctx.globalAlpha = clamp(f.life * 1.5, 0, 1); ctx.font = `700 14px Prompt, ${EMO}`;
+    ctx.lineWidth = 3; ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.strokeText(f.t, hx, hy - 34 - k * 34 - f.o * 18); ctx.fillStyle = f.c; ctx.fillText(f.t, hx, hy - 34 - k * 34 - f.o * 18);
+    ctx.globalAlpha = 1;
+  }
+}
+function drawHero(x, y) {
+  const im = img("c-player");
+  if (im) {
+    const row = { down: 0, left: 1, right: 2, up: 3 }[P.dir] || 0, col = P.t < 1 ? [1, 0, 2, 0][Math.floor(P.walk * 2) % 4] : 0;
+    const FW = im.naturalWidth / 3, FH = im.naturalHeight / 4, dh = 52, dw = dh * FW / FH;
+    ctx.drawImage(im, col * FW, row * FH, FW, FH, x - dw / 2, y + 16 - dh, dw, dh); return;
+  }
+  const d = P.dir;
+  ctx.fillStyle = "#1e7bff"; roundRect(ctx, x - 9, y - 2, 18, 15, 6); ctx.fill();
+  ctx.fillStyle = "#ffd9b8"; ctx.beginPath(); ctx.arc(x, y - 9, 9, 0, 7); ctx.fill();
+  ctx.fillStyle = "#3b2416"; ctx.beginPath(); ctx.arc(x, y - 12, 9, Math.PI, 0); ctx.fill();
+  if (d !== "up") { ctx.fillStyle = "#0f1b3d"; const ex = d === "left" ? -3 : d === "right" ? 3 : 0; ctx.fillRect(x - 4 + ex, y - 9, 2, 3); ctx.fillRect(x + 2 + ex, y - 9, 2, 3); }
+}
+const isProp = (x, y) => LAMPS.some((l) => l[0] === x && l[1] === y) || BENCHES.some((l) => l[0] === x && l[1] === y);
+const solid = (x, y) => x < 0 || y < 0 || x >= MW || y >= MH || [WATER, TREE, WALL, BOARD].includes(map[y][x]) || isProp(x, y) || NPCS.some((n) => n.x === x && n.y === y) || (S && S.wild.some((m) => m.x === x && m.y === y));
+const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+function tick(dt) {
+  if (S && (mode === "explore" || mode === "job") && !S.over) { advance(dt); if (S.t >= CFG.monthSec && mode === "explore") run(endOfMonth); }
+  if (P.t < 1) {
+    P.t = Math.min(1, P.t + dt / 0.14); P.walk += dt / 0.14;
+    P.fx = P.x + (P.tx - P.x) * P.t; P.fy = P.y + (P.ty - P.y) * P.t;
+    if (P.t >= 1) { P.x = P.tx; P.y = P.ty; P.fx = P.x; P.fy = P.y; arrived(); }
+    return;
+  }
+  if (mode !== "explore") return;
+  const d = ["up", "down", "left", "right"].find((k) => held.has(k)); if (!d) return;
+  P.dir = d; const [ax, ay] = DIRS[d], nx = P.x + ax, ny = P.y + ay;
+  if (solid(nx, ny)) return;
+  P.tx = nx; P.ty = ny; P.t = 0;
+}
+let last = performance.now(), hudTick = 0;
+setInterval(() => {
+  const now = performance.now(), dt = Math.min(0.1, (now - last) / 1000); last = now;
+  tick(dt); draw();
+  if ((hudTick += dt) > 0.2) { hudTick = 0; updateHUD(); }
+}, 16);
+
+const KEY = { ArrowUp: "up", KeyW: "up", ArrowDown: "down", KeyS: "down", ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right" };
+addEventListener("keydown", (e) => {
+  if (mode !== "explore") return;
+  if (KEY[e.code]) { held.add(KEY[e.code]); e.preventDefault(); }
+  if (e.code === "Space" || e.code === "Enter") { e.preventDefault(); interact(); }
+  if (e.code === "KeyP" || e.code === "KeyM") { e.preventDefault(); openPhone(); }
+});
+addEventListener("keyup", (e) => { if (KEY[e.code]) held.delete(KEY[e.code]); });
+addEventListener("blur", () => held.clear());
+
+/* ================= state ================= */
+let S = null;
+const SEEN_KEY = "pq_seen", DEX_KEY = "pq_dex", BEST_KEY = "pq_best";
+function newState(name, salary, cls, months) {
+  return {
+    name, salary, cls, month: 1, months, wallet: 0, left: 0, save: Math.round(salary * 0.5), debt: 0, debtOld: 0, mp: 70, team: [], income: salary,
+    incomeTotal: 0, installment: 0, raise: 0, pending: [], rebound: [], costUp: 0, lastIncomeHit: 0, fridge: 0,
+    t: 0, day: 1, meals: [], sched: [], forced: [], invites: [], quest: null, board: [], wild: [], inbox: [], tx: [], cat: {}, walk: 0, nextSmall: rint(14, 24),
+    talked: new Set(), runSeen: new Set(), mflag: {}, checkup: 0, gym: 0, carcheck: 0, lastAlloc: {}, questsDone: 0, jobsDone: 0, mealsHome: 0, mealsOut: 0, foodSpent: 0, quiet: false,
+    crisisMonth: Math.random() < 0.75 ? 2 + Math.floor(Math.random() * Math.max(1, months - 2)) : 0,
+    stats: { shieldUses: 0, cardUses: 0, cardInterest: 0, feesPaid: 0, studied: 0, scamLost: 0, soldInCrisis: 0, autoDebt: 0, late: 0 },
+  };
+}
+let monSeq = 1;
+function makeMonster(sp, known = false) {
+  const D = SPECIES[sp]; const r = (k) => +rand(D[k][0], D[k][1]).toFixed(k === "fee" ? 2 : 1);
+  const m = { id: "m" + monSeq++, sp, ret: r("ret"), vol: r("vol"), fee: r("fee"), div: r("div"), value: 0, invested: 0, known, scam: !!D.scam, hist: [], mStart: 0, mIn: 0, mGrow: 0, mFee: 0 };
+  const span = (D.ret[1] - D.ret[0]) || 1, feeSpan = (D.fee[1] - D.fee[0]) || 1;
+  const q = ((m.ret - D.ret[0]) / span) * 0.5 + (1 - (m.fee - D.fee[0]) / feeSpan) * 0.5;
+  m.star = D.scam ? 3 : q > 0.66 ? 3 : q > 0.33 ? 2 : 1;
+  m.trait = D.scam ? "แชร์ลูกโซ่: ไม่มีใบอนุญาต เอาเงินคนใหม่มาจ่ายคนเก่า" :
+    m.fee >= 1.2 ? "ค่าธรรมเนียมแพง (กัดผลตอบแทนทุกวัน)" :
+    m.div >= 3.5 ? "จ่ายเงินสดสม่ำเสมอ" :
+    D.vol[1] > 0 && m.vol > (D.vol[0] + D.vol[1]) / 2 + (D.vol[1] - D.vol[0]) * 0.25 ? "ใจร้อน (แกว่งแรงกว่าพวกเดียวกัน)" :
+    m.fee <= 0.3 && D.fee[1] > 0 ? "ค่าธรรมเนียมต่ำ" : "เรียบง่าย";
+  m.badTrait = D.scam || m.fee >= 1.2;
+  return m;
+}
+const dexAdd = (sp) => { const dx = store.get(DEX_KEY, []); if (!dx.includes(sp)) { dx.push(sp); store.set(DEX_KEY, dx); } };
+const invTotal = () => S.team.reduce((a, m) => a + m.value, 0);
+const invCost = () => S.team.reduce((a, m) => a + m.invested, 0);
+const netWorth = () => S.wallet + S.left + S.save + invTotal() - S.debt;
+
+/* ================= money core ================= */
+function record(e, label, amt, acct, cat) {
+  S.tx.unshift({ m: S.month, d: S.day, e, label, amt, acct });
+  if (S.tx.length > 120) S.tx.length = 120;
+  if (cat) S.cat[cat] = (S.cat[cat] || 0) + Math.abs(amt);
+  if (!S.quiet) tickerLine(`${e} ${label} ${amt >= 0 ? "+" : "-"}${baht(Math.abs(amt)).replace("-", "")}`, amt >= 0 ? "p" : "m");
+}
+function income(amt, cat, label, e) {
+  amt = Math.round(amt); if (amt <= 0) return;
+  S.wallet += amt; S.incomeTotal += amt; record(e, label, amt, "wallet", cat);
+  float(`${e} +${baht(amt)}`, "#11914a");
+}
+function payDebt(p) { p = Math.min(p, S.debt); S.debt -= p; S.debtOld = Math.max(0, S.debtOld - p); if (S.debt < 0.5) { S.debt = 0; S.debtOld = 0; } return p; }
+// Small, everyday spending: no question asked. Salary account first, then leftover, then the card.
+function quickPay(amt, cat, label, e) {
+  amt = Math.round(amt); if (amt <= 0) return;
+  let rem = amt; const parts = [];
+  for (const k of ["wallet", "left"]) { const p = Math.min(S[k], rem); if (p > 0) { S[k] -= p; rem -= p; parts.push(ACC[k].e); } }
+  if (rem > 0.5) { S.debt += rem; S.stats.cardUses++; parts.push("💳");
+    if (!S.mflag.cardWarn) { S.mflag.cardWarn = 1; notify({ e: "💳", title: "เงินในบัญชีหมดแล้ว", text: "ค่าใช้จ่ายถูกรูดบัตรแทน หนี้บัตรมีดอกเบี้ย (สมมติ 16%/ปี) ค้างเกิน 1 เดือนระบบจะหักอัตโนมัติ", tab: "wallet", urgent: true }); } }
+  record(e, label, -amt, parts.join("+"), cat);
+  float(`${e} -${baht(amt)}`, "#d4243a");
+}
+function float(t, c) { if (S && S.quiet) return; floats.push({ t, c, life: 1.6, o: floats.length % 3 }); }
+let tickTimers = [];
+function tickerLine(text, cls) {
+  const el = $("#ticker"); if (!el) return;
+  const d = document.createElement("div"); d.className = cls; d.textContent = text; el.appendChild(d);
+  while (el.children.length > 3) el.firstChild.remove();
+  tickTimers.push(setTimeout(() => d.remove(), 4200));
+}
+
+/* ================= clock: days, meals, schedule ================= */
+function advance(dt) {
+  S.t = Math.min(CFG.monthSec, S.t + dt);
+  const d = Math.min(CFG.days, Math.floor(S.t / DAY_SEC()) + 1);
+  while (S.day < d) { finishMeals(); S.day++; newDay(); }
+  const h = hourNow();
+  S.meals.forEach((m) => { if (!m.done && h >= m.h) { m.done = true; eat(m); } });
+  for (const v of [...S.invites]) {
+    if (v.status !== "accepted" || v.deadline == null || S.t <= v.deadline) continue;
+    S.invites = S.invites.filter((x) => x !== v); if (S.focus === v) S.focus = null;
+    S.mp = clamp(S.mp - 8, 0, 100); S.stats.failed = (S.stats.failed || 0) + 1;
+    notify({ e: "⌛", title: `ไม่ทัน! ${v.title}`, text: "ภารกิจล้มเหลว ✨ −8", tab: "inbox", urgent: true });
+    if (!S.quiet) { Sound.bad(); float("⌛ ไม่ทัน!", "#d4243a"); }
+  }
+}
+function planMeals() {
+  S.meals = [];
+  if (Math.random() < 0.55) S.meals.push({ h: rand(7, 8.5), k: "เช้า" });
+  S.meals.push({ h: rand(11.8, 12.8), k: "กลางวัน" });
+  S.meals.push({ h: rand(18, 19.5), k: "เย็น" });
+}
+function finishMeals() { S.meals.forEach((m) => { if (!m.done) { m.done = true; eat(m); } }); }
+function eat(m) {
+  if (m.k !== "กลางวัน" && S.fridge > 0) { S.fridge--; S.mealsHome++; if (!S.quiet) { tickerLine(`🍳 มื้อ${m.k}: ทำกินเอง`, "n"); float("🍳", "#11914a"); } return; }
+  const tot = MENU.reduce((a, x) => a + x[4], 0); let r = Math.random() * tot, it = MENU[0];
+  for (const x of MENU) { r -= x[4]; if (r <= 0) { it = x; break; } }
+  const price = Math.round(rand(it[1], it[2]) / 5) * 5;
+  S.mealsOut++; S.foodSpent += price;
+  quickPay(price, "food", `มื้อ${m.k}: ${it[0]}`, it[3]);
+}
+function newDay() {
+  dailyGrowth();
+  S.mp = clamp(S.mp - 0.4, 0, 100);
+  planMeals();
+  S.sched.filter((x) => x.day === S.day).forEach(fire);
+  checkOverdue();
+  if (S.day % 5 === 1) refreshBoard();
+  if (S.day % 4 === 1) spawnWild();
+  if (S.mp <= 0 && !S.forced.some((f) => f.id === "burnout")) addForced({ id: "burnout", e: "🫠", title: "หมดไฟ! ต้องพักใจ", text: "ความสุขหมดแล้ว ไปห้างพักใจก่อน", to: "mall", cost: Math.round(S.income * 0.1), cat: "fun" });
+}
+function dailyGrowth() {
+  for (const m of S.team) {
+    const before = m.value;
+    if (m.scam) { m.value *= Math.pow(1.05, 1 / 30); m.mGrow += m.value - before; m.hist.push(m.value); continue; }
+    if (before <= 0) { m.hist.push(0); continue; }
+    let r = m.ret / 100 / 365 + (m.vol / 100 / Math.sqrt(365)) * gauss() * 0.9;
+    const rb = S.rebound.find((x) => x.id === m.id && x.days > 0); if (rb) { r += rb.amt / 60; rb.days--; }
+    const fee = before * m.fee / 100 / 365;
+    m.value = Math.max(0, before * (1 + r) - fee);
+    m.mGrow += m.value - before + fee; m.mFee += fee; S.stats.feesPaid += fee;
+    m.hist.push(m.value); if (m.hist.length > 200) m.hist.shift();
+  }
+  S.rebound = S.rebound.filter((x) => x.days > 0);
+}
+const fill = (s, ev) => s.replace("{a}", ev.a ? pick(ev.a) : "").replace("{b}", ev.b ? pick(ev.b) : "");
+function drawEvent(cat) {
+  const seen = new Set(store.get(SEEN_KEY, []));
+  let pool = EVENTS.filter((e) => e.cat === cat && !S.runSeen.has(e.id) && (!e.when || e.when(S)));
+  pool = pool.filter((e) => !(e.tag === "health" && (S.checkup > 0 || S.gym > 0) && Math.random() < 0.7) && !(e.id === "car" && S.carcheck > 0 && Math.random() < 0.7));
+  if (!pool.length) return null;
+  const fresh = pool.filter((e) => !seen.has(e.id)); if (fresh.length) pool = fresh;
+  const ev = pick(pool); S.runSeen.add(ev.id);
+  const sv = store.get(SEEN_KEY, []); if (!sv.includes(ev.id)) { sv.push(ev.id); if (sv.length > 14) sv.shift(); store.set(SEEN_KEY, sv); }
+  return ev;
+}
+function buildSchedule() {
+  const sc = [];
+  const rent = Math.max(3000, Math.round(S.salary * 0.22 / 100) * 100);
+  const util = Math.round(S.salary * rand(0.03, 0.05) * (S.costUp ? 1.5 : 1) / 10) * 10;
+  const tel = Math.max(399, Math.round(S.salary * 0.02 / 100) * 100 - 1);
+  sc.push({ day: 1, kind: "forced", q: { id: "rent", e: "🏠", title: "ค่าเช่าห้อง", text: "ถึงรอบจ่ายค่าเช่าแล้ว", to: "home", cost: rent, cat: "bills" } });
+  sc.push({ day: rint(5, 9), kind: "forced", q: { id: "util", e: "💡", title: "ค่าน้ำค่าไฟ", text: S.costUp ? "ค่าไฟแพงขึ้นเดือนนี้" : "บิลเดือนนี้มาแล้ว", to: "store", cost: util, cat: "bills" } });
+  sc.push({ day: rint(12, 16), kind: "forced", q: { id: "tel", e: "📶", title: "ค่าโทรศัพท์ + เน็ตบ้าน", text: "ถึงรอบบิลรายเดือน", to: "phone", cost: tel, cat: "bills" } });
+  const nBills = Math.random() < 0.6 ? 1 : 2;
+  for (let i = 0; i < nBills; i++) {
+    const ev = drawEvent("bill"); if (!ev) break;
+    let cost = Math.round(S.income * rand(ev.cost[0], ev.cost[1]));
+    const gov = S.cls === "gov" && ev.tag === "health"; if (gov) cost = Math.round(cost * 0.3);
+    sc.push({ day: rint(3, 26), kind: "forced", q: { id: ev.id, e: ev.e, title: ev.name, text: fill(pick(ev.text), ev) + (gov ? " (สวัสดิการช่วยจ่าย)" : ""), to: ev.to, cost, cat: "emerg" } });
+  }
+  const inv = drawEvent("social");
+  if (inv) sc.push({ day: rint(4, 24), kind: "invite", q: { id: inv.id, e: inv.e, title: inv.name, text: fill(pick(inv.text), inv), to: inv.to, cost: Math.round(S.income * rand(inv.cost[0], inv.cost[1])), mp: inv.mp, cat: "fun" } });
+  if (Math.random() < 0.6) { const gd = drawEvent("good"); if (gd) sc.push({ day: rint(6, 27), kind: "good", q: gd }); }
+  return sc;
+}
+function fire(x) {
+  const q = x.q;
+  if (x.kind === "forced") addForced(q);
+  if (x.kind === "invite") { const it = { ...q, due: Math.min(CFG.days, S.day + 6), status: "pending" }; S.invites.push(it); notify({ e: q.e, title: "ชวน: " + q.title, text: `${q.text} · ${baht(q.cost)}`, tab: "inbox", invite: it }); }
+  if (x.kind === "good") { const amt = Math.round(S.income * rand(q.amt[0], q.amt[1])); income(amt, "gift", q.name, q.e); notify({ e: q.e, title: `${q.name} +${baht(amt)}`, text: fill(pick(q.text), q), tab: "wallet" }); Sound.coin(); }
+}
+function addForced(q) {
+  const f = { ...q, due: Math.min(CFG.days, S.day + (q.id === "rent" ? 6 : 6)) };
+  S.forced.push(f);
+  notify({ e: q.e, title: `ต้องจ่าย: ${q.title} ${baht(q.cost)}`, text: `📍 ${bname(q.to)} · ถึงวันที่ ${f.due}`, tab: "quests", urgent: true });
+}
+function chargeAuto(amt) { // overdue bills: salary account → leftover → card
+  let rem = amt; const parts = [];
+  for (const k of ["wallet", "left"]) { const p = Math.min(S[k], rem); if (p > 0) { S[k] -= p; rem -= p; parts.push(ACC[k].e); } }
+  if (rem > 0.5) { S.debt += rem; S.stats.cardUses++; parts.push("💳"); }
+  return parts.join("+");
+}
+function checkOverdue(all) {
+  for (const f of [...S.forced]) {
+    if (!all && f.due >= S.day) continue;
+    const fee = Math.round(f.cost * 0.05), acct = chargeAuto(f.cost + fee);
+    record(f.e, `${f.title} (เลยกำหนด +ปรับ 5%)`, -(f.cost + fee), acct, f.cat);
+    S.forced = S.forced.filter((x) => x !== f); S.stats.late++;
+    if (f.id === "burnout") S.mp = 35;
+    notify({ e: "⏰", title: `${f.title} เลยกำหนด`, text: `หักเงินเอง ${baht(f.cost + fee)} (รวมค่าปรับ)`, tab: "wallet", urgent: true });
+  }
+  for (const v of [...S.invites]) {
+    if (!all && v.due >= S.day) continue;
+    S.invites = S.invites.filter((x) => x !== v);
+    if (v.status === "accepted") { S.mp = clamp(S.mp - 5, 0, 100); notify({ e: "😞", title: "ผิดนัด: " + v.title, text: "ไปไม่ทัน ✨ −5", tab: "inbox" }); }
+  }
+  if (S.quest && (all || S.quest.due < S.day)) { notify({ e: "⌛", title: "ภารกิจหมดเวลา: " + S.quest.title, text: "รับงานใหม่ที่บอร์ดได้", tab: "quests" }); S.quest = null; }
+}
+function refreshBoard() {
+  const pool = shuffle(QUESTS.filter((q) => !(S.quest && S.quest.id === q.id)));
+  const pickKind = (k) => pool.find((q) => q.kind === k && !out.includes(q));
+  const out = []; ["job", "gig", "errand"].forEach((k) => { const q = pickKind(k); if (q) out.push(q); });
+  for (const q of pool) { if (out.length >= 5) break; if (!out.includes(q)) out.push(q); }
+  S.board = out.map((q) => ({ ...q, cost: q.costPct ? Math.round(S.salary * q.costPct) : q.cost, payAmt: q.pay ? Math.round(S.salary * q.pay / 10) * 10 : 0, days: q.kind === "job" ? 6 : 4 }));
+}
+function spawnWild() {
+  S.wild = S.wild.filter(() => Math.random() < 0.4);
+  const want = 3;
+  for (let tries = 0; S.wild.length < want && tries < 80; tries++) {
+    const x = rint(1, MW - 2), y = rint(1, MH - 2);
+    if (map[y][x] !== TALL || solid(x, y) || (P.x === x && P.y === y)) continue;
+    S.wild.push({ x, y, sp: rollSpecies() });
+  }
+}
+function rollSpecies() {
+  const entries = Object.entries(SPECIES).filter(([k, d]) => !(d.scam && S.month < 2) && !S.team.some((m) => m.sp === k && d.scam));
+  const tot = entries.reduce((a, [, d]) => a + d.w, 0); let r = Math.random() * tot;
+  for (const [k, d] of entries) { r -= d.w; if (r <= 0) return k; } return "turtle";
+}
+const cdLeft = (v) => Math.max(0, v.deadline - S.t);
+const mmss = (sec) => { const n = Math.ceil(sec); return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`; };
+function setFocus(ref) { S.focus = ref; trackerKey = ""; const b = BMAP[ref === S.quest ? (S.quest.stage === "pickup" ? S.quest.from : S.quest.to) : ref.to]; Sound.blip(); toast(`🧭 ไป${b.name}ก่อน`); }
+function targets() {
+  const t = [];
+  S.forced.forEach((f) => t.push({ kind: "forced", b: BMAP[f.to], ref: f }));
+  if (S.quest) t.push({ kind: "quest", b: BMAP[S.quest.stage === "pickup" ? S.quest.from : S.quest.to], ref: S.quest });
+  S.invites.filter((v) => v.status === "accepted").forEach((v) => t.push({ kind: "invite", b: BMAP[v.to], ref: v }));
+  if (!S.forced.length && !S.quest) t.push({ kind: "board", board: true });
+  // the player picks which one to go to first (🧭); the arrow follows it
+  if (S.focus) { const i = t.findIndex((x) => x.ref === S.focus); if (i > 0) t.unshift(t.splice(i, 1)[0]); else if (i < 0) S.focus = null; }
+  return t;
+}
+
+/* ================= phone notifications ================= */
+let notifTimer = 0, notifSeq = 1;
+function notify(n) {
+  n.id = notifSeq++; n.read = false; n.d = S.day; n.m = S.month;
+  S.inbox.unshift(n); if (S.inbox.length > 60) S.inbox.length = 60;
+  if (S.quiet) return;
+  const el = $("#notif"); $("#nIc").textContent = n.e; $("#nT").textContent = n.title; $("#nX").textContent = n.text;
+  el.classList.toggle("urgent", !!n.urgent); el.classList.add("show"); Sound.ping();
+  el.onclick = () => { el.classList.remove("show"); if (mode === "explore") openPhone(n.tab || "inbox"); };
+  clearTimeout(notifTimer); notifTimer = setTimeout(() => el.classList.remove("show"), 3800);
+}
+
+/* ================= HUD ================= */
+let prevVals = {};
+function renderExplore() {
+  ui.innerHTML = `<div class="hud glass" id="hud">
+      <div class="r1"><div class="clock"><span class="mo" id="hMo"></span><span id="hDay"></span><span class="tm" id="hTime"></span></div>
+        <button class="iconbtn" id="helpBtn" aria-label="วิธีเล่น">❓</button><button class="iconbtn" id="sndBtn" aria-label="เปิดหรือปิดเสียง">${Sound.on ? "🔊" : "🔇"}</button></div>
+      <div class="bar time" aria-hidden="true"><i id="hBar"></i></div>
+      <div class="accts">
+        <button class="acct" data-tab="wallet" id="aW"><span class="lb">${ico("u-wallet")}เงินเดือน</span><b></b></button>
+        <button class="acct" data-tab="wallet" id="aL"><span class="lb">${ico("u-leftover")}เงินเหลือ</span><b></b></button>
+        <button class="acct" data-tab="wallet" id="aS"><span class="lb">${ico("u-savings")}เงินเก็บ</span><b></b></button>
+        <button class="acct" data-tab="port" id="aI"><span class="lb">${ico("u-invest")}ลงทุน <small id="aIp"></small></span><b></b></button>
+      </div>
+      <div class="mprow"><span>${ico("u-happy")}ความสุข</span><div class="bar mp"><i id="hMp"></i></div><span class="chipx" id="hX"></span></div>
+      <div id="tracker"></div>
+    </div>
+    <div id="ticker" aria-live="polite"></div>
+    <div class="pad" id="pad" aria-label="ปุ่มเดิน">
+      <button class="u" data-d="up" aria-label="ขึ้น">▲</button><button class="l" data-d="left" aria-label="ซ้าย">◀</button>
+      <button class="r" data-d="right" aria-label="ขวา">▶</button><button class="d" data-d="down" aria-label="ลง">▼</button></div>
+    <button class="phonebtn" id="phoneBtn" aria-label="เปิดมือถือ"><img src="${imgSrc("u-phone")}" alt="" draggable="false"><small>มือถือ</small><span class="nbadge" id="nBadge" hidden></span></button>
+    <button class="abtn" id="abtn" aria-label="คุย เข้าอาคาร หรือดูบอร์ด">A<small>คุย/เข้า</small></button><div id="modal"></div>`;
+  $("#pad").querySelectorAll("button").forEach((b) => {
+    const d = b.dataset.d;
+    const on = (e) => { e.preventDefault(); if (mode === "explore") { held.add(d); b.classList.add("on"); } };
+    const off = () => { held.delete(d); b.classList.remove("on"); };
+    b.addEventListener("pointerdown", on); b.addEventListener("pointerup", off); b.addEventListener("pointerleave", off); b.addEventListener("pointercancel", off);
+  });
+  $("#abtn").onclick = () => interact();
+  $("#phoneBtn").onclick = () => { Sound.blip(); openPhone(); };
+  $("#helpBtn").onclick = () => { Sound.blip(); if (mode === "explore") helpInGame(); };
+  $("#sndBtn").onclick = (e) => { Sound.on = !Sound.on; store.set("pq_sound", Sound.on); e.currentTarget.textContent = Sound.on ? "🔊" : "🔇"; Sound.blip(); };
+  document.querySelectorAll(".acct").forEach((b) => (b.onclick = () => { Sound.blip(); openPhone(b.dataset.tab); }));
+  prevVals = {}; trackerKey = ""; updateHUD();
+}
+let trackerKey = "";
+function updateHUD() {
+  if (!S || !$("#hud")) return;
+  const h = hourNow() % 24, hh = Math.floor(h), mm = Math.floor((h - hh) * 60 / 10) * 10;
+  $("#hMo").textContent = `เดือน ${S.month}/${S.months}`;
+  $("#hDay").textContent = `วันที่ ${S.day}`;
+  $("#hTime").textContent = `${h < 18 ? "☀️" : "🌇"} ${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+  $("#hBar").style.width = clamp(100 - (S.t / CFG.monthSec) * 100, 0, 100) + "%";
+  const inv = invTotal(), cost = invCost(), g = cost > 0 ? (inv / cost - 1) * 100 : 0;
+  const vals = { aW: S.wallet, aL: S.left, aS: S.save, aI: inv };
+  for (const k in vals) {
+    const el = $("#" + k); if (!el) continue; el.querySelector("b").textContent = baht(vals[k]);
+    if (prevVals[k] != null && Math.abs(vals[k] - prevVals[k]) >= 1) { el.classList.remove("up", "down"); void el.offsetWidth; el.classList.add(vals[k] > prevVals[k] ? "up" : "down"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("up", "down"), 700); }
+    prevVals[k] = vals[k];
+  }
+  const ip = $("#aIp"); ip.textContent = cost > 0 ? pct(g) : ""; ip.className = g >= 0 ? "up" : "down";
+  $("#hMp").style.width = clamp(S.mp, 0, 100) + "%";
+  $("#hX").innerHTML = (S.debt > 0.5 ? `<span class="debt">${ico("u-card")}หนี้ ${baht(S.debt)}</span> ` : "") + (S.fridge > 0 ? `${ico("u-fridge")}${S.fridge} มื้อ` : "");
+  const unread = S.inbox.filter((n) => !n.read).length, nb = $("#nBadge"); nb.hidden = !unread; nb.textContent = unread;
+  const tg = targets().filter((t) => !t.board);
+  const key = JSON.stringify([tg.map((t) => t.kind + t.ref.id + (t.ref.stage || "") + (t.ref.due || "") + (t.kind === "invite" && t.ref.deadline != null ? Math.ceil(cdLeft(t.ref)) : "")), S.day]);
+  if (key !== trackerKey) {
+    trackerKey = key;
+    const rows = tg.slice(0, 3).map((t, i) => {
+      const o = t.ref, first = i === 0 && tg.length > 1 ? "focus" : "";
+      if (t.kind === "forced") return `<button class="trk forced ${first}" data-i="${i}">${first ? "🧭" : "⚠️"} <span>${esc(o.title)} → ${bname(o.to)}</span><small>${baht(o.cost)} · ${Math.max(0, o.due - S.day)} วัน</small></button>`;
+      if (t.kind === "quest") return `<button class="trk quest ${first}" data-i="${i}">${first ? "🧭" : "★"} <span>${esc(o.title)} → ${bname(o.stage === "pickup" ? o.from : o.to)}${o.stage === "pickup" ? " (รับของ)" : ""}</span><small>${Math.max(0, o.due - S.day)} วัน</small></button>`;
+      const left = o.deadline != null ? cdLeft(o) : null;
+      return `<button class="trk invite ${first} ${left != null && left <= 10 ? "hurry" : ""}" data-i="${i}">${first ? "🧭" : "♥"} <span>${esc(o.title)} → ${bname(o.to)}</span><small class="cd">${left != null ? "⏳ " + mmss(left) : "ถึงวันที่ " + o.due}</small></button>`;
+    });
+    if (tg.length > 3) rows.push(`<button class="trk forced" data-tab="quests"><span>+ อีก ${tg.length - 3} อย่าง</span></button>`);
+    if (tg.length > 1) rows.push(`<div class="trkhint">แตะแถบเพื่อเลือกว่าจะไปไหนก่อน</div>`);
+    if (!rows.length) rows.push(`<button class="trk quest" data-tab="quests">📋 <span>ว่างอยู่ → ไปรับงานที่บอร์ด</span></button>`);
+    const tr = $("#tracker"); tr.innerHTML = rows.join("");
+    tr.querySelectorAll(".trk").forEach((b) => (b.onclick = () => {
+      if (b.dataset.i != null) { const t = tg[+b.dataset.i]; if (t && mode === "explore") { if (+b.dataset.i === 0) { Sound.blip(); openPhone("quests"); } else setFocus(t.ref); } return; }
+      Sound.blip(); openPhone(b.dataset.tab);
+    }));
+  }
+  const hd = $("#hud"); if (hd) hudH = hd.offsetHeight + 8;
+}
+let toastTimer = 0;
+function toast(msg) {
+  let t = $("#toast"); if (!t) { t = document.createElement("div"); t.id = "toast"; t.className = "toast glass"; t.setAttribute("role", "status"); document.body.appendChild(t); }
+  t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 2800);
+}
+function modal(html, cls = "") {
+  let host = $("#modal"); if (!host) { host = document.createElement("div"); host.id = "modal"; ui.appendChild(host); }
+  host.innerHTML = `<div class="scrim"><div class="panel glass ${cls}" role="dialog" aria-modal="true">${html}</div></div>`;
+  const p = host.querySelector(".panel"); p.scrollTop = 0; return p;
+}
+const closeModal = () => { const m = $("#modal"); if (m) m.innerHTML = ""; };
+
+/* ================= encounter panel: say / choose ================= */
+let textEl = null, menuEl = null;
+function scene(foe) {
+  const p = modal(`
+    <div class="foe"><div class="orb ${foe.boss ? "boss" : ""}" id="orb" aria-hidden="true">${foe.img ? `<img src="${imgSrc(foe.img)}" alt="">` : foe.e}</div>
+      <div style="min-width:0"><div class="name">${esc(foe.name)}</div><div class="sub">${esc(foe.sub || "")}</div></div></div>
+    <div id="extra"></div>
+    <div class="speech" id="tb" role="status"><span id="tx"></span></div>
+    <div class="menu" id="menu"></div>
+    <div class="mini" id="mini"></div>`);
+  textEl = $("#tx", p); menuEl = $("#menu", p); sceneStats();
+  return p;
+}
+function sceneStats() { const m = $("#mini"); if (m && S) m.innerHTML = `<span>👛 <b class="num">${baht(S.wallet)}</b></span><span>💰 <b class="num">${baht(S.left)}</b></span><span>🐷 <b class="num">${baht(S.save)}</b></span><span>💳 <b class="num">${baht(S.debt)}</b></span><span>✨ <b class="num">${Math.round(S.mp)}</b></span>`; updateHUD(); }
+function say(text) {
+  return new Promise((resolve) => {
+    menuEl.innerHTML = ""; let skip = false;
+    const tb = $("#tb"); textEl.textContent = ""; let i = 0; const chars = Array.from(text);
+    const done = () => {
+      textEl.textContent = text;
+      tb.insertAdjacentHTML("beforeend", `<span class="more" aria-hidden="true">▼</span>`);
+      const go = () => { tb.onclick = null; const m = tb.querySelector(".more"); if (m) m.remove(); Sound.blip(); resolve(); };
+      tb.onclick = go; menuEl.innerHTML = `<button class="btn primary wide" id="cont">ต่อไป</button>`; $("#cont").onclick = go;
+      try { menuEl.scrollIntoView({ block: "nearest" }); } catch (e) {}
+    };
+    tb.onclick = () => { skip = true; };
+    if (REDUCE) { done(); return; }
+    const iv = setInterval(() => { if (skip || i >= chars.length) { clearInterval(iv); done(); return; } textEl.textContent += chars[i++]; }, 14);
+  });
+}
+function choose(options) {
+  return new Promise((resolve) => {
+    menuEl.innerHTML = options.map((o, i) => `<button class="btn ${o.cls || ""}${o.wide || (options.length % 2 && i === options.length - 1) ? " wide" : ""}" data-i="${i}" ${o.disabled ? "disabled" : ""}>${o.label}</button>`).join("");
+    menuEl.querySelectorAll("button").forEach((b) => (b.onclick = () => { Sound.blip(); menuEl.innerHTML = ""; resolve(options[+b.dataset.i]); }));
+    try { menuEl.scrollIntoView({ block: "nearest" }); } catch (e) {}
+  });
+}
+const anim = (id, cls) => { const e = $("#" + id); if (!e || REDUCE) return; e.classList.remove(cls); void e.offsetWidth; e.classList.add(cls); };
+function pickMonster(list, q) {
+  return new Promise((resolve) => {
+    textEl.textContent = q;
+    menuEl.innerHTML = list.map((m, i) => `<button class="btn" data-i="${i}">${ico("m-" + m.sp)}${SPECIES[m.sp].name}<br><span class="num">${baht(m.value)}</span></button>`).join("") + `<button class="btn${list.length % 2 ? "" : " wide"}" data-i="-1">ยกเลิก</button>`;
+    menuEl.querySelectorAll("button").forEach((b) => (b.onclick = () => { Sound.blip(); const i = +b.dataset.i; menuEl.innerHTML = ""; resolve(i < 0 ? null : list[i]); }));
+  });
+}
+// Bigger bills: you choose where the money comes from.
+async function payFlow(cost, what, optional, cat, e) {
+  let remain = Math.round(cost), usedSave = false; const parts = [];
+  while (remain > 0.5) {
+    const sellable = S.team.filter((m) => !m.scam && m.value > 1);
+    const c = await choose([
+      { k: "wallet", label: `👛 บัญชีเงินเดือน<br><span class="num">${baht(S.wallet)}</span>`, cls: "primary", disabled: S.wallet < 1 },
+      { k: "left", label: `💰 เงินเหลือ<br><span class="num">${baht(S.left)}</span>`, disabled: S.left < 1 },
+      { k: "save", label: `🐷 เงินเก็บ<br><span class="num">${baht(S.save)}</span>`, disabled: S.save < 1 },
+      { k: "card", label: "💳 รูดบัตร<br><small>ดอกเบี้ยสมมติ 16%/ปี</small>", cls: "danger" },
+      { k: "sell", label: "🎒 ขายมอน", disabled: !sellable.length },
+      ...(optional ? [{ k: "skip", label: "🏃 ไม่เอาดีกว่า" }] : []),
+    ]);
+    if (["wallet", "left", "save"].includes(c.k)) {
+      const pay = Math.min(S[c.k], remain); S[c.k] -= pay; remain -= pay; parts.push(ACC[c.k].e); if (c.k === "save") usedSave = true;
+      Sound.hit(); anim("orb", "shake"); sceneStats();
+      await say(`จ่ายจาก${ACC[c.k].n} ${baht(pay)}` + (remain > 0.5 ? ` ยังขาดอีก ${baht(remain)}` : " เรียบร้อย!"));
+    } else if (c.k === "card") {
+      S.debt += remain; S.stats.cardUses++; parts.push("💳"); Sound.bad(); sceneStats();
+      await say(`รูดบัตรไป ${baht(remain)} กลายเป็นหนี้ ถ้าค้างเกิน 1 เดือน ระบบจะหักจากบัญชีให้อัตโนมัติ`); remain = 0;
+    } else if (c.k === "sell") {
+      const m = await pickMonster(sellable, "ขายมอนตัวไหน?"); if (!m) continue;
+      const D = SPECIES[m.sp], sold = Math.min(m.value, remain / D.liq), got = sold * D.liq;
+      m.value -= sold; remain -= got; parts.push(D.e); if (m.value < 1) S.team = S.team.filter((t) => t !== m);
+      Sound.coin(); sceneStats();
+      await say(`ขาย${D.name}ได้ ${baht(got)}` + (D.liq < 1 ? ` (ขายด่วนเสียส่วนต่าง ${baht(sold - got)})` : "") + (remain > 0.5 ? ` ยังขาดอีก ${baht(remain)}` : ""));
+    } else if (c.k === "skip") { S.mp = clamp(S.mp - 6, 0, 100); sceneStats(); await say(`ไม่เอา${what}แล้ว (ความสุข −6)`); return false; }
+  }
+  if (usedSave) S.stats.shieldUses++;
+  record(e || "🧾", what, -Math.round(cost), parts.join("+"), cat);
+  return true;
+}
+
+/* ================= amount input + money distribution ================= */
+function amountPanel(o) {
+  return new Promise((resolve) => {
+    const p = modal(`<div class="head"><div class="badge">${o.e}</div><div><h2>${o.title}</h2><div class="muted">${o.sub || ""}</div></div></div>
+      <label class="field" for="amt">ใส่จำนวนเงิน (มี ${baht(o.max)})<input type="number" id="amt" inputmode="numeric" min="0" max="${Math.floor(o.max)}" step="100" value="${Math.floor(o.def != null ? o.def : o.max)}"></label>
+      <div class="chips">${[0.25, 0.5, 1].map((f) => `<button class="btn" data-f="${f}">${f === 1 ? "ทั้งหมด" : f * 100 + "%"}</button>`).join("")}</div>
+      <div class="row"><button class="btn" id="cx">ยกเลิก</button><button class="btn green" id="ok">ยืนยัน</button></div>`);
+    p.querySelectorAll("[data-f]").forEach((b) => (b.onclick = () => { $("#amt").value = Math.floor(o.max * +b.dataset.f); Sound.blip(); }));
+    $("#cx", p).onclick = () => { Sound.blip(); resolve(null); };
+    $("#ok", p).onclick = () => { Sound.blip(); const v = clamp(Math.round(+$("#amt").value || 0), 0, Math.floor(o.max)); resolve(v); };
+  });
+}
+// Put real baht amounts from one account into savings / monsters / debt.
+function distPanel(o) {
+  return new Promise((resolve) => {
+    const src = o.src, vals = o.vals || {};
+    const rows = [];
+    if (src !== "save") rows.push({ k: "save", c: "var(--blue)", n: "🐷 เงินเก็บ", sub: `มี ${baht(S.save)} · ปลอดภัย โตช้า` });
+    S.team.filter((m) => !m.scam).forEach((m) => { const D = SPECIES[m.sp]; rows.push({ k: "m:" + m.id, c: "var(--lime)", n: `${D.e} ${D.name}`, sub: `มี ${baht(m.value)}${m.known ? ` · ~${m.ret}%/ปี` : ""}` }); });
+    if (S.debt > 0.5) rows.push({ k: "debt", c: "var(--red)", n: "💳 โปะหนี้บัตร", sub: `ค้าง ${baht(S.debt)}`, max: S.debt });
+    rows.forEach((r) => { if (vals[r.k] == null) vals[r.k] = 0; });
+    const base = o.base || S[src];
+    const p = modal(`<div class="head"><div class="badge">${o.e || ACC[src].e}</div><div><h2>${o.title}</h2><div class="muted">${o.sub || `ย้ายจาก${ACC[src].n} ไปไหนบ้าง?`}</div></div></div>
+      ${o.head || ""}
+      <div class="card remain"><span class="muted">เหลือใน ${ACC[src].e} ${ACC[src].n}</span><span class="big" id="rem"></span></div>
+      ${rows.map((r) => `<div class="drow" style="--c:${r.c}"><div class="lbl"><b>${r.n}</b><small>${r.sub}</small></div>
+        <input type="number" inputmode="numeric" min="0" step="100" data-k="${r.k}" value="${vals[r.k] || ""}" placeholder="0" aria-label="${esc(r.n)}">
+        <div class="qc"><button class="btn" data-k="${r.k}" data-q="0">0</button><button class="btn" data-k="${r.k}" data-q="a1000">+1,000</button><button class="btn" data-k="${r.k}" data-q="p0.05">+5%</button><button class="btn" data-k="${r.k}" data-q="p0.1">+10%</button></div></div>`).join("") || `<p class="muted">ยังไม่มีที่ให้ย้ายไป</p>`}
+      <div id="hint"></div>
+      ${(o.extra || []).map((x) => `<button class="btn" data-x="${x.k}">${x.label}</button>`).join("")}
+      <div class="row">${o.cancel ? `<button class="btn" id="cx">ยกเลิก</button>` : ""}<button class="btn green" id="ok">${o.okLabel || "ยืนยัน"}</button></div>`);
+    const total = () => rows.reduce((a, r) => a + (vals[r.k] || 0), 0);
+    const draw = () => {
+      const rem = S[src] - total(); const el = $("#rem", p); el.textContent = baht(rem); el.style.color = rem < 0 ? "var(--bad)" : "";
+      $("#ok", p).disabled = rem < -0.5;
+      p.querySelectorAll("input[data-k]").forEach((i) => { const v = vals[i.dataset.k]; if (document.activeElement !== i) i.value = v ? v : ""; });
+      $("#hint", p).innerHTML = (o.hint ? o.hint(rem) : "") + (rem < -0.5 ? `<div class="hint red">เกินไป ${baht(-rem)}</div>` : "");
+    };
+    p.querySelectorAll("input[data-k]").forEach((i) => (i.oninput = () => { const r = rows.find((x) => x.k === i.dataset.k); vals[i.dataset.k] = clamp(Math.round(+i.value || 0), 0, r.max != null ? Math.ceil(r.max) : 1e9); draw(); }));
+    p.querySelectorAll("[data-q]").forEach((b) => (b.onclick = () => {
+      const k = b.dataset.k, q = b.dataset.q, r = rows.find((x) => x.k === k);
+      let v = q === "0" ? 0 : q[0] === "a" ? (vals[k] || 0) + +q.slice(1) : (vals[k] || 0) + Math.round(base * +q.slice(1) / 100) * 100;
+      if (r.max != null) v = Math.min(v, Math.ceil(r.max)); vals[k] = Math.max(0, v); Sound.tone(1200, 0.05, "sine", 0.05); draw();
+    }));
+    p.querySelectorAll("[data-x]").forEach((b) => (b.onclick = () => { Sound.blip(); resolve({ extra: b.dataset.x, vals }); }));
+    if (o.cancel) $("#cx", p).onclick = () => { Sound.blip(); resolve({ cancel: true, vals }); };
+    $("#ok", p).onclick = () => {
+      for (const r of rows) {
+        const a = Math.min(vals[r.k] || 0, S[src]); if (a <= 0) continue;
+        S[src] -= a;
+        if (r.k === "save") { S.save += a; record("🐷", `โอนเข้าเงินเก็บ`, -a, ACC[src].e, null); }
+        else if (r.k === "debt") { const pd = payDebt(a); S[src] += a - pd; record("💳", "โปะหนี้บัตร", -pd, ACC[src].e, null); }
+        else { const m = S.team.find((x) => "m:" + x.id === r.k); if (m) { m.value += a; m.invested += a; m.mIn += a; record(SPECIES[m.sp].e, `ลงทุนเพิ่มใน${SPECIES[m.sp].name}`, -a, ACC[src].e, null); } }
+      }
+      Sound.coin(); updateHUD(); resolve({ ok: true, vals });
+    };
+    draw();
+  });
+}
+
+/* ================= phone ================= */
+let phoneTab = "inbox";
+function openPhone(tab) {
+  if (!S || (mode !== "explore" && mode !== "phone")) return;
+  mode = "phone"; held.clear(); document.querySelectorAll(".pad .on").forEach((b) => b.classList.remove("on"));
+  $("#notif").classList.remove("show");
+  if (tab) phoneTab = tab;
+  renderPhone();
+}
+function closePhone() { closeModal(); mode = "explore"; updateHUD(); }
+function sparkSVG(arr, col) {
+  const a = arr.slice(-60); if (a.length < 2) return `<svg viewBox="0 0 100 40" aria-hidden="true"><line x1="0" y1="20" x2="100" y2="20" stroke="#cfd6e6" stroke-dasharray="3 3"/></svg>`;
+  const mn = Math.min(...a), mx = Math.max(...a), rg = mx - mn || 1;
+  const pts = a.map((v, i) => `${(i / (a.length - 1) * 100).toFixed(1)},${(36 - (v - mn) / rg * 32).toFixed(1)}`).join(" ");
+  return `<svg viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+}
+function renderPhone() {
+  const unread = S.inbox.filter((n) => !n.read).length;
+  const tabs = [["inbox", "🔔", "แจ้งเตือน", unread], ["quests", "🎯", "ภารกิจ", S.forced.length], ["wallet", "👛", "กระเป๋า", 0], ["port", "📈", "พอร์ต", 0], ["help", "❓", "วิธีเล่น", 0]];
+  let body = "", title = "";
+  if (phoneTab === "inbox") {
+    title = "แจ้งเตือน";
+    body = S.inbox.map((n) => {
+      const inv = n.invite && S.invites.includes(n.invite) && n.invite.status === "pending";
+      return `<div class="nitem ${n.read ? "" : "unread"}"><div class="ni">${n.e}</div><div><b>${esc(n.title)}</b><div class="t">${esc(n.text)}</div><div class="when">เดือน ${n.m} วันที่ ${n.d}</div>
+        ${inv ? `<div class="row" style="margin-top:6px"><button class="btn sm green" data-acc="${n.id}">👍 ไป</button><button class="btn sm" data-dec="${n.id}">ไม่ไป (✨ −4)</button></div>` : ""}</div></div>`;
+    }).join("") || `<p class="muted">ยังไม่มีแจ้งเตือน</p>`;
+    S.inbox.forEach((n) => (n.read = true));
+  }
+  if (phoneTab === "quests") {
+    title = "ภารกิจ";
+    body = `<div class="hint ${S.forced.length ? "red" : "blue"}">${S.forced.length ? `⚠️ จ่ายบิลสีแดง ${S.forced.length} อย่างก่อน ถึงรับงานใหม่ได้` : "✅ ไม่มีบิลค้าง ไปรับงานที่ 📋 บอร์ดได้เลย"}</div>`
+      + S.forced.map((f, i) => `<div class="qcard forced"><div class="ni">${f.e}</div><div><b>${esc(f.title)}</b><div class="t">${esc(f.text)}</div><div class="meta"><span class="cost">${baht(f.cost)}</span><span>📍 ${bname(f.to)}</span><span>ถึงวันที่ ${f.due}</span></div></div>${navBtn("f" + i, f)}</div>`).join("")
+      + (S.quest ? `<div class="qcard"><div class="ni">${S.quest.e}</div><div><b>${esc(S.quest.title)}</b><div class="t">${esc(S.quest.text)}</div><div class="meta">${qMeta(S.quest)}<span>📍 ${S.quest.stage === "pickup" ? "รับของที่ " + bname(S.quest.from) : bname(S.quest.to)}</span><span>ถึงวันที่ ${S.quest.due}</span></div></div><div class="act">${navBtn("q", S.quest)}<button class="btn sm" id="qCancel">ยกเลิก</button></div></div>` : "")
+      + S.invites.map((v, i) => `<div class="qcard"><div class="ni">${v.e}</div><div><b>${v.status === "accepted" ? "♥ " : "ชวน: "}${esc(v.title)}</b><div class="t">${esc(v.text)}</div><div class="meta"><span class="cost">${baht(v.cost)}</span><span>+${v.mp} ✨</span><span>📍 ${bname(v.to)}</span><span>${v.deadline != null ? `⏳ เหลือ ${mmss(cdLeft(v))}` : `ตอบรับถึงวันที่ ${v.due}`}</span></div></div>${v.status === "accepted" ? navBtn("v" + i, v) : ""}</div>`).join("")
+      + `<p class="muted">ภารกิจ ${S.questsDone} · งานเสริม ${S.jobsDone}</p>`;
+  }
+  if (phoneTab === "wallet") {
+    title = "กระเป๋าเงิน";
+    const inv = invTotal();
+    body = `<div class="acrow"><div class="ni">👛</div><div><b>บัญชีเงินเดือน</b><small>ไว้กินใช้ เดือนนี้</small></div><b class="v">${baht(S.wallet)}</b></div>
+      <div class="acrow"><div class="ni">💰</div><div><b>เงินเหลือ</b><small>ใช้ไม่หมดจากเดือนก่อน</small></div><b class="v">${baht(S.left)}</b></div>
+      <div class="acrow"><div class="ni">🐷</div><div><b>เงินเก็บ</b><small>เงินสำรองฉุกเฉิน</small></div><b class="v">${baht(S.save)}</b></div>
+      <div class="acrow"><div class="ni">📈</div><div><b>ลงทุน (มอนทั้งทีม)</b><small>ทุน ${baht(invCost())} · ขึ้นลงทุกวัน</small></div><b class="v">${baht(inv)}</b></div>
+      <div class="acrow"><div class="ni">💳</div><div><b>หนี้บัตร</b><small>ค้างเกิน 1 เดือน โดนหักเอง</small></div><b class="v ${S.debt > 0.5 ? "down" : ""}">${baht(S.debt)}</b></div>
+      <div class="card remain"><span class="muted">💎 รวมทั้งหมด (หักหนี้)</span><b class="big" style="font-size:22px">${baht(netWorth())}</b></div>
+      <div class="row"><button class="btn green" id="dLeft" ${S.left < 1 ? "disabled" : ""}>💰 แบ่งเงินเหลือ</button><button class="btn" id="dWallet" ${S.wallet < 1 ? "disabled" : ""}>👛 แบ่งเงินเดือน</button></div>
+      <div class="card"><h3 style="font-size:15px;margin-bottom:4px">รายการล่าสุด</h3><div class="txl">${S.tx.slice(0, 25).map((t) => `<div><span>${t.e} ${esc(t.label)} <small class="muted">ว.${t.d} ${t.acct ? "· " + t.acct : ""}</small></span><b class="${t.amt >= 0 ? "up" : "down"}">${t.amt >= 0 ? "+" : "-"}${baht(Math.abs(t.amt))}</b></div>`).join("") || "<p class='muted'>ยังไม่มีรายการ</p>"}</div></div>`;
+  }
+  if (phoneTab === "port") {
+    title = "พอร์ตลงทุน";
+    const inv = invTotal(), cost = invCost(), gain = inv - cost;
+    body = `<div class="card"><div class="gl"><div>มูลค่ารวม<b>${baht(inv)}</b></div><div>ทุนที่ใส่<b>${baht(cost)}</b></div><div>กำไร/ขาดทุน<b class="${gain >= 0 ? "up" : "down"}">${gain >= 0 ? "+" : ""}${baht(gain)}</b></div></div></div>
+      <div class="hint blue">📈 ขึ้นลงทุกวัน · ค่าธรรมเนียมหักทีละนิด · ใส่เงินเพิ่มที่ 👛 กระเป๋า</div>`
+      + S.team.map((m) => { const D = SPECIES[m.sp], g = m.value - m.invested, gp = m.invested > 0 ? (m.value / m.invested - 1) * 100 : 0;
+        return `<div class="mon"><div class="tp"><b>${ico("m-" + m.sp)}${D.name}</b><span class="muted">${D.kind}</span></div>
+          ${sparkSVG(m.hist, g >= 0 ? "#11914a" : "#d4243a")}
+          <div class="gl"><div>มูลค่า<b>${baht(m.value)}</b></div><div>ทุน<b>${baht(m.invested)}</b></div><div>กำไร<b class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "+" : ""}${baht(g)} <small>(${pct(gp)})</small></b></div></div>
+          <div class="gl"><div>เดือนนี้<b class="${m.mGrow >= 0 ? "up" : "down"}">${m.mGrow >= 0 ? "+" : ""}${baht(m.mGrow)}</b></div><div>ค่าธรรมเนียม<b class="down">-${baht(m.mFee)}</b></div><div>ค่าพลัง<b>${m.known ? `${m.scam ? "???" : m.ret + "%/ปี"}` : "???"}</b></div></div></div>`; }).join("")
+      + (S.team.length ? "" : `<p class="muted">ยังไม่มีมอน ไปจับในทุ่งลงทุน 🌾</p>`)
+      + `<p class="foot">ตัวเลขจำลอง ไม่ใช่คำแนะนำการลงทุน</p>`;
+  }
+  if (phoneTab === "help") { title = "วิธีเล่น"; body = helpHTML(); }
+  const h = hourNow() % 24;
+  const p = modal(`<div class="ptop"><span>📱 PayPhone</span><span>เดือน ${S.month} · วันที่ ${S.day} · ${String(Math.floor(h)).padStart(2, "0")}:${String(Math.floor((h % 1) * 6) * 10).padStart(2, "0")}</span></div>
+    <div class="ptitle"><h2>${title}</h2><button class="btn sm" id="pClose">ปิด ✕</button></div>
+    <div class="pbody">${body}</div>
+    <div class="ptabs">${tabs.map(([k, i, n, b]) => `<button class="ptab" data-t="${k}" aria-current="${k === phoneTab}"><span class="i">${i}</span>${n}${b ? `<span class="dot">${b}</span>` : ""}</button>`).join("")}</div>`, "phone");
+  $("#pClose", p).onclick = () => { Sound.blip(); closePhone(); };
+  p.querySelectorAll(".ptab").forEach((b) => (b.onclick = () => { Sound.blip(); phoneTab = b.dataset.t; renderPhone(); }));
+  p.querySelectorAll("[data-acc]").forEach((b) => (b.onclick = () => { const n = S.inbox.find((x) => x.id === +b.dataset.acc); const v = n.invite, bd = BMAP[v.to], dist = Math.abs(bd.dx - P.x) + Math.abs(bd.dy - P.y), lim = Math.round(clamp(10 + dist * 0.3, 18, 40));
+    v.status = "accepted"; v.deadline = S.t + lim; v.due = CFG.days; S.focus = v; trackerKey = ""; Sound.coin(); toast(`⏳ ไป${bd.name}ให้ทันใน ${lim} วิ!`); renderPhone(); }));
+  p.querySelectorAll("[data-dec]").forEach((b) => (b.onclick = () => { const n = S.inbox.find((x) => x.id === +b.dataset.dec); S.invites = S.invites.filter((v) => v !== n.invite); S.mp = clamp(S.mp - 4, 0, 100); Sound.blip(); renderPhone(); }));
+  const qc = $("#qCancel", p); if (qc) qc.onclick = () => { S.quest = null; Sound.blip(); renderPhone(); };
+  p.querySelectorAll("[data-nav]").forEach((b) => (b.onclick = () => { const k = b.dataset.nav, ref = k === "q" ? S.quest : k[0] === "f" ? S.forced[+k.slice(1)] : S.invites[+k.slice(1)]; if (ref) { setFocus(ref); renderPhone(); } }));
+  const dl = $("#dLeft", p); if (dl) dl.onclick = async () => { await distPanel({ src: "left", title: "แบ่งเงินเหลือ", cancel: true }); renderPhone(); };
+  const dw = $("#dWallet", p); if (dw) dw.onclick = async () => { await distPanel({ src: "wallet", title: "แบ่งเงินเดือน", cancel: true, hint: (r) => `<div class="hint">🍜 เหลือค่ากินไว้ด้วย (วันละ ~${baht(MEAL_AVG * 2.55)})</div>` }); renderPhone(); };
+}
+function navBtn(k, ref) {
+  const on = targets()[0] && targets()[0].ref === ref;
+  return `<div class="act"><button class="btn sm ${on ? "" : "primary"}" data-nav="${k}" ${on ? "disabled" : ""}>${on ? "🧭 กำลังไป" : "🧭 ไปอันนี้ก่อน"}</button></div>`;
+}
+function qMeta(q) {
+  return q.kind === "job" ? `<span class="pay">ค่าจ้างตามฝีมือ</span><span>🎮 มินิเกม</span>` : q.payAmt ? `<span class="pay">+${baht(q.payAmt)}</span>` : q.cost ? `<span class="cost">${baht(q.cost)}</span>${q.mp ? `<span>+${q.mp} ✨</span>` : ""}` : `<span>ฟรี</span>`;
+}
+
+/* ================= help ================= */
+function helpHTML() {
+  return `<div class="card"><dl class="terms">
+      <dt>⏱️ เวลา</dt><dd>1 เดือน = 3 นาที · เปิดมือถือ เวลาหยุด</dd>
+      <dt>👛 เงินเดือน</dt><dd>เข้าต้นเดือน ค่ากินหักจากตรงนี้</dd>
+      <dt>💰 เงินเหลือ</dt><dd>ใช้ไม่หมด ย้ายมาตอนสิ้นเดือน</dd>
+      <dt>🐷 เงินเก็บ</dt><dd>เงินสำรองฉุกเฉิน</dd>
+      <dt>📈 ลงทุน</dt><dd>มอนในทีม ขึ้นลงทุกวัน</dd>
+      <dt>🍜 ค่ากิน</dt><dd>หักเอง วันละ 2–3 มื้อ</dd>
+      <dt>📱 มือถือ</dt><dd>บิลสีแดง ต้องไปจ่ายก่อน</dd>
+      <dt>🧭 นำทาง</dt><dd>แตะแถบภารกิจ เลือกว่าจะไปไหนก่อน</dd>
+      <dt>⏳ นัดเพื่อน</dt><dd>มีเวลานับถอยหลัง ไปไม่ทัน = ล้มเหลว</dd>
+      <dt>📋 บอร์ด</dt><dd>รับงานทีละ 1 หาเงินเพิ่ม</dd>
+      <dt>🧰 งานเสริม</dt><dd>มินิเกม ยิ่งยาก ยิ่งได้มาก</dd>
+      <dt>💳 หนี้บัตร</dt><dd>ค้างเกิน 1 เดือน โดนหักเอง</dd>
+      <dt>🅰️ ปุ่ม A</dt><dd>คุย · เข้าร้าน · ดูบอร์ด · จับมอน</dd>
+    </dl></div>
+    <p class="muted">บนแผนที่: <b style="color:#ef3b4f">!</b> ต้องจ่าย · <b style="color:#ff9f1c">★</b> ภารกิจ · <b style="color:#1e7bff">♥</b> นัด · <b style="color:#12c2c2">?</b> บอร์ด</p>`;
+}
+function helpInGame() {
+  mode = "busy";
+  const p = modal(`<div class="head"><div class="badge">❓</div><h2>วิธีเล่น</h2></div>${helpHTML()}<button class="btn primary" id="hc">เล่นต่อ</button>`);
+  $("#hc", p).onclick = () => { Sound.blip(); closeModal(); mode = "explore"; };
+}
+
+/* ================= minigames (≤ 30 s, harder = more pay) ================= */
+const DIFF = { easy: { n: "ง่าย", pay: 0.025 }, mid: { n: "ปานกลาง", pay: 0.05 }, hard: { n: "ยาก", pay: 0.085 } };
+const MG = {
+  fruit: { e: "🍎", name: "คัดผลไม้", how: "แตะผลไม้ดีให้ไว ห้ามแตะของเสีย", sec: { easy: 20, mid: 20, hard: 20 } },
+  cash: { e: "🧮", name: "แคชเชียร์ทอนเงิน", how: "เลือกเงินทอนที่ถูกต้อง ผิดโดนหักคะแนน", sec: { easy: 25, mid: 25, hard: 25 } },
+  match: { e: "🧩", name: "จับคู่หนังสือ", how: "เปิดการ์ดทีละ 2 ใบ หาคู่ให้ครบ", sec: { easy: 30, mid: 30, hard: 30 } },
+};
+const jobPay = (diff) => Math.round(S.salary * DIFF[diff].pay / 10) * 10;
+function miniGame(game, diff) {
+  return new Promise((resolve) => {
+    const M = MG[game], sec = M.sec[diff];
+    const target = game === "fruit" ? { easy: 12, mid: 18, hard: 24 }[diff] : game === "cash" ? { easy: 7, mid: 8, hard: 8 }[diff] : { easy: 6, mid: 8, hard: 10 }[diff];
+    const p = modal(`<div class="head"><div class="badge">${M.e}</div><div><h2>${M.name}</h2><div class="muted">${DIFF[diff].n} · ${M.how}</div></div></div>
+      <div class="card"><p>🎯 <b>${target}</b> คะแนน · ⏱️ <b>${sec}</b> วิ · 💰 สูงสุด <b>${baht(jobPay(diff))}</b></p></div>
+      <button class="btn green" id="mgGo">เริ่ม!</button>`);
+    $("#mgGo", p).onclick = () => {
+      Sound.blip(); mode = "job";
+      const q = modal(`<div class="head"><div class="badge">${M.e}</div><div><h2>${M.name}</h2><div class="muted">${DIFF[diff].n}</div></div></div>
+        <div class="mgtop"><span>คะแนน <b id="mgS">0</b> / ${target}</span><span id="mgT">${sec} วิ</span></div><div class="bar time"><i id="mgBar" style="width:100%"></i></div><div id="mgA"></div>`);
+      const area = $("#mgA", q); let score = 0, ended = false; const timers = [];
+      const setScore = (d) => { score = Math.max(0, score + d); $("#mgS").textContent = score; };
+      const t0 = performance.now();
+      const finish = () => { if (ended) return; ended = true; timers.forEach((t) => { clearInterval(t); clearTimeout(t); }); resolve(clamp(score / target, 0, 1)); };
+      timers.push(setInterval(() => { const el = (performance.now() - t0) / 1000, left = Math.max(0, sec - el); const b = $("#mgBar"); if (b) b.style.width = (left / sec) * 100 + "%"; const t = $("#mgT"); if (t) t.textContent = Math.ceil(left) + " วิ"; if (left <= 0) finish(); }, 100));
+      if (game === "fruit") {
+        const n = diff === "easy" ? 3 : 4, spawn = { easy: 650, mid: 520, hard: 400 }[diff], life = { easy: 1400, mid: 1050, hard: 780 }[diff], badR = { easy: 0.25, mid: 0.33, hard: 0.4 }[diff];
+        area.innerHTML = `<div class="mg-grid" style="grid-template-columns:repeat(${n},1fr)">${Array.from({ length: n * n }, (_, i) => `<button class="mg-cell" data-i="${i}" aria-label="ช่อง ${i + 1}"></button>`).join("")}</div>`;
+        const cells = [...area.querySelectorAll(".mg-cell")];
+        cells.forEach((c) => (c.onclick = () => { if (!c.dataset.k) return; const good = c.dataset.k === "g"; setScore(good ? 1 : -1); (good ? Sound.coin : Sound.hit).call(Sound); c.classList.add(good ? "ok" : "no"); c.innerHTML = ""; c.dataset.k = ""; setTimeout(() => c.classList.remove("ok", "no"), 180); }));
+        let tokN = 0;
+        timers.push(setInterval(() => {
+          const free = cells.filter((c) => !c.dataset.k); if (!free.length) return;
+          const c = pick(free), bad = Math.random() < badR; c.dataset.k = bad ? "b" : "g";
+          c.innerHTML = `<img src="${imgSrc(bad ? "g-bad" + rint(0, 3) : "g-good" + rint(0, 6))}" alt="${bad ? "ของเสีย" : "ผลไม้ดี"}">`;
+          const tk = String(++tokN); c.dataset.tok = tk; timers.push(setTimeout(() => { if (c.dataset.tok === tk && c.dataset.k) { c.innerHTML = ""; c.dataset.k = ""; } }, life));
+        }, spawn));
+      }
+      if (game === "cash") {
+        const next = () => {
+          let price, paid, txt;
+          if (diff === "easy") { price = rint(12, 95); paid = 100; txt = `ราคา ${baht(price)} ลูกค้าจ่าย ${baht(paid)}`; }
+          else if (diff === "mid") { price = rint(105, 480); paid = 500; txt = `ราคา ${baht(price)} ลูกค้าจ่าย ${baht(paid)}`; }
+          else { const a = rint(35, 290), b = rint(35, 290); price = a + b; paid = 1000; txt = `ของ ${baht(a)} + ${baht(b)} ลูกค้าจ่าย ${baht(paid)}`; }
+          const ch = paid - price, set = new Set([ch]);
+          const deltas = diff === "easy" ? [10, -10, 5, -5] : [10, -10, 1, -1, 100, -100];
+          while (set.size < (diff === "easy" ? 3 : 4)) { const v = ch + pick(deltas); if (v > 0) set.add(v); }
+          const opts = shuffle([...set]);
+          area.innerHTML = `<img class="mg-cashier" src="${imgSrc("g-cashier")}" alt=""><div class="mg-q">${txt}<small>ต้องทอนเท่าไร?</small></div><div class="mg-opts">${opts.map((v) => `<button class="btn" data-v="${v}">${baht(v)}</button>`).join("")}</div>`;
+          area.querySelectorAll("[data-v]").forEach((b) => (b.onclick = () => { if (ended) return; const ok = +b.dataset.v === ch; setScore(ok ? 1 : -1); (ok ? Sound.coin : Sound.hit).call(Sound); next(); }));
+        };
+        next();
+      }
+      if (game === "match") {
+        const pairs = target, icons = Array.from({ length: pairs }, (_, i) => i);
+        const face = (i) => `<img src="${imgSrc("g-book" + i)}" alt="หนังสือ ${i + 1}">`, back = `<img src="${imgSrc("g-book11")}" alt="?">`;
+        const deck = shuffle([...icons, ...icons]); let open = [], lock = false;
+        area.innerHTML = `<div class="mg-grid" style="grid-template-columns:repeat(${pairs > 8 ? 5 : 4},1fr)">${deck.map((e, i) => `<button class="mg-card" data-i="${i}" aria-label="การ์ด ${i + 1}">${back}</button>`).join("")}</div>`;
+        const cards = [...area.querySelectorAll(".mg-card")];
+        cards.forEach((c) => (c.onclick = () => {
+          if (lock || ended || c.classList.contains("open") || c.classList.contains("done")) return;
+          c.classList.add("open"); c.innerHTML = face(deck[+c.dataset.i]); open.push(c); Sound.blip();
+          if (open.length === 2) {
+            const [a, b] = open; open = [];
+            if (deck[+a.dataset.i] === deck[+b.dataset.i]) { a.classList.add("done"); b.classList.add("done"); setScore(1); Sound.coin(); if (score >= pairs) setTimeout(finish, 300); }
+            else { lock = true; setTimeout(() => { a.classList.remove("open"); b.classList.remove("open"); a.innerHTML = back; b.innerHTML = back; lock = false; }, 550); }
+          }
+        }));
+      }
+    };
+  });
+}
+async function doJob(game, bonus) {
+  scene({ e: MG[game].e, name: "งานเสริม: " + MG[game].name, sub: "≤ 30 วิ" });
+  textEl.textContent = "เลือกความยาก ยิ่งยาก ยิ่งได้มาก";
+  const c = await choose([
+    ...Object.entries(DIFF).map(([k, d]) => ({ k, label: `${d.n}<br><span class="num">สูงสุด ${baht(jobPay(k) * bonus)}</span>`, cls: k === "hard" ? "warn" : k === "mid" ? "primary" : "" })),
+    { k: "no", label: "ไว้ก่อน" },
+  ]);
+  if (c.k === "no") return false;
+  const perf = await miniGame(game, c.k);
+  mode = "busy";
+  const pay = perf > 0 ? Math.round(jobPay(c.k) * bonus * (0.25 + 0.75 * perf) / 10) * 10 : 0;
+  scene({ e: MG[game].e, name: "เลิกงานแล้ว", sub: `ทำได้ ${Math.round(perf * 100)}%` });
+  if (pay > 0) { income(pay, "job", `งานเสริม ${MG[game].name} (${DIFF[c.k].n})`, MG[game].e); S.jobsDone++; S.mp = clamp(S.mp - 2, 0, 100); Sound.win(); sceneStats(); await say(`+${baht(pay)} 💼 (✨ −2)`); }
+  else { Sound.bad(); await say("ยังไม่ได้เงิน ลองระดับง่ายลงนะ"); }
+  return true;
+}
+
+/* ================= title flow ================= */
+function title() {
+  mode = "title"; S = null; P.x = P.tx = 30; P.y = P.ty = 14; P.fx = 30; P.fy = 14;
+  ui.innerHTML = `<div class="titlebg"></div><div id="modal"></div>`;
+  const p = modal(`<div style="text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center">
+      <span class="tag">เดโม · ชื่อชั่วคราว</span><div class="logowrap"><img src="${imgSrc("title-logo")}" alt=""><div class="logo">Payday Quest</div></div>
+      ${imgDone < imgTotal ? `<div class="loadbar" style="width:70%"><i style="width:${imgDone / Math.max(1, imgTotal) * 100}%"></i></div>` : ""}
+      <p class="muted">แบ่งเงินเดือนให้รอดถึงสิ้นเดือน</p></div>
+      <button class="btn primary" id="go">เริ่มเกม</button>`);
+  $("#go", p).onclick = () => { Sound.blip(); disclaimer(); };
+}
+function disclaimer() {
+  const p = modal(`
+    <div class="head"><div class="badge">⚠️</div><h2>คำเตือนก่อนเล่น</h2></div>
+    <div class="card"><ol class="rules">
+      <li>เกมนี้เพื่อ<b>เรียนรู้และความสนุก</b> <b>ไม่ใช่คำแนะนำการลงทุน</b></li>
+      <li>ชื่อทุกอย่างในเกมเป็น<b>ชื่อสมมติ</b></li>
+      <li>ตัวเลขทั้งหมดเป็น<b>การจำลอง</b> ไม่ได้บอกอนาคต</li>
+      <li>ลงทุนจริงมีความเสี่ยง ศึกษาข้อมูล และปรึกษาผู้แนะนำที่ได้รับอนุญาตก่อน</li>
+      <li>ไม่เก็บข้อมูลส่วนตัว ทุกอย่างอยู่ในเครื่องคุณ</li>
+    </ol></div>
+    <label class="check" for="ack"><input type="checkbox" id="ack"> เข้าใจแล้ว นี่คือเกมจำลอง ไม่ใช่คำแนะนำการลงทุน</label>
+    <button class="btn primary" id="next" disabled>ถัดไป</button>`);
+  const ack = $("#ack", p), next = $("#next", p);
+  ack.onchange = () => { next.disabled = !ack.checked; Sound.blip(); };
+  next.onclick = () => { Sound.blip(); howto(); };
+}
+function howto() {
+  const p = modal(`<div class="head"><div class="badge">📖</div><h2>เล่นยังไง?</h2></div>
+    <div class="steps">
+      <div class="step"><div class="si">💼</div><div><b>ต้นเดือน เงินเดือนเข้า</b><span>แบ่งไปเก็บ 🐷 หรือลงทุน 📈</span></div></div>
+      <div class="step"><div class="si">🕹️</div><div><b>เดินในเมือง</b><span>ลูกศรเดิน · A เข้าร้าน · ว่างก็รับงานที่บอร์ด 📋</span></div></div>
+      <div class="step"><div class="si">📱</div><div><b>บิลเด้งในมือถือ</b><span>แตะแถบด้านบน เลือกว่าจะไปไหนก่อน</span></div></div>
+      <div class="step"><div class="si">📋</div><div><b>นัดเพื่อนมีเวลา ⏳</b><span>ไปไม่ทัน = ภารกิจล้มเหลว</span></div></div>
+      <div class="step"><div class="si">⏱️</div><div><b>1 เดือน = 3 นาที</b><span>เวลาเดินตลอด แม้ยืนนิ่ง</span></div></div>
+    </div>
+    <div class="goal">🎯 เป้าหมายทุกสิ้นเดือน<br>💰 มีเงินเหลือ · 💳 ไม่มีหนี้ · ✨ มีความสุข</div>
+    <p class="muted" style="text-align:center">ลืมแล้วกด ❓ ได้ตลอด</p>
+    <div class="row"><button class="btn" id="back">กลับ</button><button class="btn primary" id="go">สร้างตัวละคร</button></div>`);
+  $("#back", p).onclick = () => { Sound.blip(); disclaimer(); };
+  $("#go", p).onclick = () => { Sound.blip(); setup(); };
+}
+function setup() {
+  let cls = store.get("pq_cls", "office"), starter = "wolf", months = store.get("pq_months", 3);
+  const p = modal(`
+    <div class="head"><div class="badge">🧑</div><h2>สร้างตัวละคร</h2></div>
+    <label class="field" for="nm">ชื่อเล่น<input type="text" id="nm" maxlength="16" placeholder="เช่น บีม" value="${esc(store.get("pq_name", ""))}"></label>
+    <label class="field" for="sal">เงินเดือน (บาท)<input type="number" id="sal" inputmode="numeric" min="8000" max="300000" step="500" value="${store.get("pq_salary", 25000)}"></label>
+    <div class="chips">${[15000, 25000, 35000, 50000].map((v) => `<button class="btn" data-sal="${v}">${v.toLocaleString("en-US")}</button>`).join("")}</div>
+    <div class="field">เล่นกี่เดือน</div>
+    <div class="chips" id="mo">${[3, 6].map((v) => `<button class="btn" data-mo="${v}" aria-pressed="${v === months}">${v} เดือน (~${v * 3} นาที)</button>`).join("")}</div>
+    <div class="field">อาชีพ</div>
+    <div class="picks" id="cls">${Object.entries(CLASSES).map(([k, c]) => `<button class="pick" data-k="${k}" aria-pressed="${k === cls}"><span class="ic" aria-hidden="true">${c.ic}</span><span><b>${c.name}</b><span class="d">${c.d}</span></span></button>`).join("")}</div>
+    <div class="field">มอนตัวแรก</div>
+    <div class="picks" id="st" style="grid-template-columns:1fr">${["turtle", "wolf", "dragon"].map((k) => `<button class="pick" data-k="${k}" aria-pressed="${k === starter}"><span class="ic" aria-hidden="true">${SPECIES[k].e}</span><span><b>${SPECIES[k].name}</b><span class="d">${k === "turtle" ? "นิ่ง โตช้า" : k === "wolf" ? "โตกลางๆ ขึ้นลงกลางๆ" : "โตแรง ขึ้นลงแรง"}</span></span></button>`).join("")}</div>
+    <p id="err" class="muted" style="color:var(--bad)" hidden></p>
+    <button class="btn green" id="start">ออกเดินทาง</button>`);
+  p.querySelectorAll("[data-sal]").forEach((x) => (x.onclick = () => { $("#sal").value = x.dataset.sal; Sound.blip(); }));
+  p.querySelectorAll("[data-mo]").forEach((x) => (x.onclick = () => { months = +x.dataset.mo; p.querySelectorAll("[data-mo]").forEach((y) => y.setAttribute("aria-pressed", String(y === x))); Sound.blip(); }));
+  const group = (id, set) => p.querySelectorAll(`#${id} .pick`).forEach((x) => (x.onclick = () => {
+    p.querySelectorAll(`#${id} .pick`).forEach((y) => y.setAttribute("aria-pressed", "false")); x.setAttribute("aria-pressed", "true"); set(x.dataset.k); Sound.blip(); }));
+  group("cls", (k) => (cls = k)); group("st", (k) => (starter = k));
+  $("#start", p).onclick = () => {
+    const sal = Math.round(+$("#sal").value);
+    if (!(sal >= 8000 && sal <= 300000)) { const e = $("#err"); e.hidden = false; e.textContent = "ใส่เงินเดือนระหว่าง 8,000 ถึง 300,000 บาท"; return; }
+    const name = ($("#nm").value || "นักผจญภัย").trim().slice(0, 16);
+    store.set("pq_name", name); store.set("pq_salary", sal); store.set("pq_cls", cls); store.set("pq_months", months);
+    S = newState(name, sal, cls, months); S.team.push(makeMonster(starter, true)); dexAdd(starter);
+    Sound.appear(); run(startMonth);
+  };
+}
+
+/* ================= month cycle ================= */
+function monthIncome() {
+  let f = 1; if (S.cls === "freelance") f = rand(0.5, 1.5); if (S.cls === "shop") f = rand(0.45, 1.75);
+  let inc = S.salary * (1 + S.raise) * f * (1 - S.lastIncomeHit); S.lastIncomeHit = 0;
+  if (S.cls === "office" && S.month === S.months) inc += S.salary;
+  return Math.round(inc);
+}
+async function startMonth() {
+  const home = BMAP.home; P.x = P.tx = home.dx; P.y = P.ty = home.dy + 1; P.fx = P.x; P.fy = P.y; P.t = 1; P.dir = "down";
+  Object.assign(S, { t: 0, day: 1, forced: [], invites: [], quest: null, cat: {}, walk: 0, talked: new Set(), mflag: {}, gym: Math.max(0, S.gym - 1), carcheck: Math.max(0, S.carcheck - 1) });
+  S.team.forEach((m) => { m.mStart = m.value; m.mIn = 0; m.mGrow = 0; m.mFee = 0; });
+  renderExplore(); mode = "busy";
+  await payday();
+  for (const p of S.pending.filter((p) => p.m <= S.month)) pendingNote(p);
+  S.pending = S.pending.filter((p) => p.m > S.month);
+  S.sched = buildSchedule(); planMeals(); refreshBoard(); spawnWild();
+  closeModal(); mode = "explore";
+  S.sched.filter((x) => x.day === 1).forEach(fire);
+  updateHUD();
+  toast(S.month === 1 ? "🏠 ไปจ่ายค่าเช่าที่บ้านก่อน (ตามลูกศร)" : `เดือนที่ ${S.month} เริ่มแล้ว!`);
+}
+function payday() {
+  // interest, overdue auto-deduction, installments, then salary in
+  const notes = [];
+  if (S.debt > 0.5) { const it = Math.round(S.debt * 0.16 / 12); S.debt += it; S.debtOld += it; S.stats.cardInterest += it; notes.push(["💳 ดอกเบี้ยบัตร", it]); }
+  S.income = monthIncome(); S.incomeTotal += S.income; S.wallet += S.income; record("💼", "เงินเดือนเข้า", S.income, "👛", null);
+  if (S.installment) { const p = Math.min(S.wallet, S.installment); S.wallet -= p; if (S.installment > p) S.debt += S.installment - p; record("📲", "ค่างวดมือถือ", -S.installment, "👛", "bills"); notes.push(["📲 ค่างวดมือถือ", S.installment]); }
+  const autoLines = [];
+  const overdue = Math.min(S.debtOld, S.debt);
+  if (overdue > 0.5) {
+    let rem = overdue;
+    for (const k of ["wallet", "left", "save"]) { const p = Math.min(S[k], rem); if (p > 0) { S[k] -= p; payDebt(p); rem -= p; autoLines.push(`${ACC[k].e} ${ACC[k].n} −${baht(p)}`); } }
+    if (rem > 0.5) for (const m of S.team.filter((m) => !m.scam && m.value > 1).sort((a, b) => b.value - a.value)) {
+      const D = SPECIES[m.sp], sell = Math.min(m.value, rem / D.liq), got = sell * D.liq; m.value -= sell; payDebt(got); rem -= got; autoLines.push(`${D.e} ขาย${D.name} ${baht(got)}`);
+      if (m.value < 1) S.team = S.team.filter((t) => t !== m); if (rem <= 0.5) break;
+    }
+    S.stats.autoDebt += overdue - Math.max(0, rem); record("⚠️", "หักหนี้บัตรที่ค้างเกิน 1 เดือนอัตโนมัติ", -Math.round(overdue - Math.max(0, rem)), "auto", null);
+  }
+  S.debtOld = S.debt;
+  const cl = CLASSES[S.cls];
+  const rent = Math.max(3000, Math.round(S.salary * 0.22 / 100) * 100), util = Math.round(S.salary * 0.04 / 10) * 10, tel = Math.max(399, Math.round(S.salary * 0.02 / 100) * 100 - 1), food = Math.round(MEAL_AVG * 2.55 * CFG.days / 100) * 100;
+  const est = rent + util + tel + food + 1500;
+  const vals = {};
+  for (const k in S.lastAlloc) if (k === "save" || S.team.some((m) => "m:" + m.id === k)) vals[k] = Math.min(S.lastAlloc[k], S.wallet);
+  const head = `<div class="card"><div class="lines">
+      <div><span>💼 เงินเดือนเข้า${S.cls === "office" && S.month === S.months ? " (+โบนัส)" : ""}</span><b class="up">+${baht(S.income)}</b></div>
+      ${notes.map(([n, v]) => `<div><span>${n}</span><b class="down">${baht(v)}</b></div>`).join("")}
+    </div>${S.cls === "freelance" || S.cls === "shop" ? `<p class="muted">${cl.ic} เดือนนี้รายได้${S.income >= S.salary ? "ดีกว่า" : "น้อยกว่า"}ปกติ</p>` : ""}</div>
+    ${autoLines.length ? `<div class="hint red"><b>⚠️ หนี้ค้างเกิน 1 เดือน โดนหัก ${baht(overdue)}</b><br>${autoLines.join(" · ")}</div>` : ""}`;
+  const hint = (rem) => `<div class="card"><b style="font-family:var(--font-head)">เดือนนี้ต้องจ่ายประมาณ</b><div class="lines" style="margin-top:4px">
+      <div><span>🏠 ค่าเช่า</span><b>${baht(rent)}</b></div><div><span>💡 ค่าน้ำไฟ</span><b>~${baht(util)}</b></div><div><span>📶 ค่าโทร + เน็ต</span><b>${baht(tel)}</b></div>
+      <div><span>🍜 ค่ากิน</span><b>~${baht(food)}</b></div><div><span>🛵 จิปาถะ</span><b>~${baht(1500)}</b></div>
+      <div><span><b>รวม</b></span><b>~${baht(est)}</b></div></div></div>
+    ${rem < est ? `<div class="hint">⚠️ เหลือ ${baht(rem)} อาจไม่พอใช้ทั้งเดือน</div>` : ""}`;
+  return (async () => {
+    for (;;) {
+      const r = await distPanel({ src: "wallet", e: "💰", title: `เดือนที่ ${S.month} · เงินเดือนออก!`, sub: "แบ่งไปเก็บ/ลงทุนเท่าไร? ที่เหลือไว้ใช้", head, vals, hint,
+        extra: S.left >= 1 ? [{ k: "left", label: `💰 แบ่งเงินเหลือเดือนก่อน (${baht(S.left)})` }] : [], okLabel: "ยืนยัน ออกไปใช้ชีวิต" });
+      if (r.extra === "left") { await distPanel({ src: "left", title: "แบ่งเงินเหลือ", cancel: true }); continue; }
+      S.lastAlloc = { ...r.vals };
+      break;
+    }
+  })();
+}
+function pendingNote(p) {
+  if (p.kind === "repay") { income(p.amt, "gift", "เพื่อนคืนเงินที่ยืม", "💸"); notify({ e: "💸", title: "เพื่อนคืนเงินแล้ว +" + baht(p.amt), text: "คืนตามสัญญา", tab: "wallet" }); }
+  if (p.kind === "raise") { S.raise += 0.05; notify({ e: "📜", title: "ขึ้นเงินเดือน 5%", text: "มีผลเดือนหน้า", tab: "inbox" }); }
+  if (p.kind === "chainbust") notify({ e: "🔗", title: "วงแชร์ล่ม −" + baht(p.amt), text: "ติดต่อป้าไม่ได้แล้ว การันตีสูง + ไม่มีใบอนุญาต = อันตราย", tab: "inbox", urgent: true });
+}
+
+/* ================= walking: arrival, doors, interactions ================= */
+let busy = false;
+async function run(fn) {
+  if (busy) return; busy = true; mode = "busy"; held.clear(); document.querySelectorAll(".pad .on").forEach((b) => b.classList.remove("on"));
+  try { await fn(); } catch (e) { console.error(e); } finally {
+    busy = false;
+    if (S && !S.over && mode === "busy") { closeModal(); mode = "explore"; updateHUD(); }
+  }
+}
+function arrived() {
+  if (!S || mode !== "explore") return;
+  S.walk++; if (S.walk % 3 === 0) Sound.step();
+  const t = map[P.y][P.x];
+  if (t === DOOR) { const b = BUILDINGS.find((b) => b.dx === P.x && b.dy === P.y); if (b) return run(() => enterBuilding(b)); }
+  if (S.walk >= S.nextSmall) { S.walk = 0; S.nextSmall = rint(16, 30); smallEvent(); }
+}
+function smallEvent() {
+  const ev = pick(SMALL);
+  if (ev.c) { quickPay(rint(ev.c[0], ev.c[1]), "other", ev.t, ev.e); if (ev.mp) S.mp = clamp(S.mp + ev.mp, 0, 100); }
+  else income(rint(ev.g[0], ev.g[1]), "gift", ev.t, ev.e);
+}
+function interact() {
+  if (mode !== "explore" || !S) return;
+  const near = (x, y) => Math.abs(x - P.x) + Math.abs(y - P.y) === 1;
+  const [ax, ay] = DIRS[P.dir];
+  const n = NPCS.find((n) => n.x === P.x + ax && n.y === P.y + ay) || NPCS.find((n) => near(n.x, n.y));
+  if (n) return run(() => talk(n));
+  const w = S.wild.find((m) => near(m.x, m.y));
+  if (w) return run(() => catchEvent(w));
+  if (Math.abs(BOARD_POS.x - P.x) + Math.abs(BOARD_POS.y - P.y) <= 1) return run(openBoard);
+  const b = BUILDINGS.find((b) => Math.abs(b.dx - P.x) + Math.abs(b.dy - P.y) <= 1);
+  if (b) return run(() => enterBuilding(b));
+  toast("ตรงนี้ว่าง ลองไปที่ประตู คน ❗ หรือบอร์ด 📋");
+}
+function stepOut(b) { P.x = P.tx = b.dx; P.y = P.ty = b.dy + (b.door === "down" ? 1 : -1); P.fx = P.x; P.fy = P.y; P.t = 1; P.dir = b.door; }
+
+/* ---------- quest board ---------- */
+function openBoard() {
+  return new Promise((resolve) => {
+    const blocked = S.forced.length > 0, busyQ = !!S.quest;
+    const p = modal(`<div class="head"><div class="badge">📋</div><div><h2>บอร์ดภารกิจ</h2><div class="muted">รับได้ทีละ 1 · เปลี่ยนทุก 5 วัน</div></div></div>
+      ${blocked ? `<div class="hint red">⚠️ จ่ายบิลก่อน: ${S.forced.map((f) => esc(f.title)).join(", ")}</div>` : busyQ ? `<div class="hint">★ กำลังทำ "${esc(S.quest.title)}" อยู่</div>` : ""}
+      ${S.board.map((q, i) => `<div class="qcard"><div class="ni">${q.e}</div><div><b>${esc(q.title)}</b><div class="t">${esc(q.text)}</div>
+        <div class="meta">${qMeta(q)}<span>📍 ${q.from ? bname(q.from) + " → " : ""}${bname(q.to)}</span><span>${q.days} วัน</span></div></div>
+        <div class="act"><button class="btn sm ${blocked || busyQ ? "" : "green"}" data-i="${i}" ${blocked || busyQ ? "disabled" : ""}>รับภารกิจ</button></div></div>`).join("") || `<p class="muted">บอร์ดว่าง รออีกไม่กี่วัน</p>`}
+      <button class="btn primary" id="bx">ปิด</button>`);
+    p.querySelectorAll("[data-i]").forEach((b) => (b.onclick = () => {
+      const q = S.board[+b.dataset.i]; S.quest = { ...q, stage: q.from ? "pickup" : "go", due: Math.min(CFG.days, S.day + q.days) };
+      S.board.splice(+b.dataset.i, 1); Sound.appear(); toast(`★ ${q.title} → ${bname(q.from || q.to)}`); resolve();
+    }));
+    $("#bx", p).onclick = () => { Sound.blip(); resolve(); };
+  });
+}
+async function questAt(b) {
+  const q = S.quest;
+  if (q.stage === "pickup" && q.from === b.id) { q.stage = "go"; Sound.coin(); await say(`รับของแล้ว ${q.e} → ไปส่งที่${bname(q.to)}`); return; }
+  if (q.stage !== "go" || q.to !== b.id) return;
+  if (q.kind === "gig") { S.quest = null; S.questsDone++; income(q.payAmt, "job", q.title, q.e); if (q.mp) S.mp = clamp(S.mp + q.mp, 0, 100); Sound.win(); sceneStats(); await say(`สำเร็จ! +${baht(q.payAmt)} 💼`); return; }
+  if (q.kind === "job") { const done = await doJob(q.game, 1.2); if (done) { S.quest = null; S.questsDone++; } scene({ e: b.e, img: "b-" + b.id, name: b.name, sub: "" }); return; }
+  if (q.kind === "errand") {
+    textEl.textContent = `${q.e} ${q.title}${q.cost ? ` · ${baht(q.cost)}` : ""}`;
+    if (q.cost) { const ok = await payFlow(q.cost, q.title, true, q.mp ? "fun" : "other", q.e); if (!ok) { S.quest = null; return; } }
+    S.quest = null; S.questsDone++;
+    if (q.mp) S.mp = clamp(S.mp + q.mp, 0, 100);
+    if (q.fridge) S.fridge += q.fridge;
+    if (q.check) S.checkup = 2;
+    if (q.study) S.team.forEach((m) => { if (!m.known) { m.known = true; S.stats.studied++; } });
+    Sound.win(); sceneStats();
+    await say(`สำเร็จ! ${q.mp ? `✨ +${q.mp}` : q.fridge ? `🧊 ตู้เย็นมี ${S.fridge} มื้อ` : q.check ? "🩺 ป่วยยากขึ้น 2 เดือน" : q.study ? "🔍 เห็นค่าพลังมอนแล้ว" : ""}`);
+  }
+}
+
+/* ---------- buildings ---------- */
+const GREET = { home: "บ้านที่อบอุ่น จะทำอะไรดี?", bank: "ธนาคาร (สมมติ) ยินดีต้อนรับ", office: "ออฟฟิศ วันนี้งานเยอะเหมือนเดิม", clinic: "คลินิก ป้องกันไว้ก่อนดีกว่าแก้", library: "ห้องสมุดเงียบสงบ ข้อมูลเพียบ",
+  mall: "ห้างลดราคาทั้งชั้น!", store: "ร้านสะดวกซื้อ เปิด 24 ชั่วโมง", cafe: "กลิ่นกาแฟหอมฟุ้ง", jobs: "ศูนย์งานเสริม มีงานพาร์ทไทม์สั้นๆ ให้เลือก", post: "ไปรษณีย์ คิวไม่ยาวเท่าไร",
+  vet: "คลินิกสัตว์ น้องหมาน้องแมวรอคิวอยู่", super: "ซูเปอร์มาร์เก็ต ของสดเพียบ", market: "ตลาดสด เสียงแม่ค้าเรียกลูกค้า", food: "ศูนย์อาหาร ร้านเยอะจนเลือกไม่ถูก", barber: "ร้านตัดผม เก้าอี้ว่างพอดี",
+  gym: "ฟิตเนส เสียงดนตรีจังหวะมันส์", phone: "ร้านมือถือและเครื่องใช้ไฟฟ้า", flower: "ร้านดอกไม้ หอมสดชื่น", garage: "อู่ซ่อมรถ เสียงเครื่องยนต์ดังลั่น", police: "สำนักงานเขต รับเรื่องทุกช่อง",
+  temple: "วัด ร่มรื่นสงบ", station: "สถานีรถไฟฟ้า คนพลุกพล่าน", hall: "ฮอลล์จัดงานและโรงหนัง" };
+async function enterBuilding(b) {
+  scene({ e: b.e, img: "b-" + b.id, name: b.name, sub: "ยินดีต้อนรับ" }); Sound.appear();
+  // forced quests here come first
+  for (const f of S.forced.filter((f) => f.to === b.id)) {
+    textEl.textContent = `⚠️ ${f.title} ${baht(f.cost)}`;
+    await say(f.text);
+    await payFlow(f.cost, f.title, false, f.cat, f.e);
+    S.forced = S.forced.filter((x) => x !== f); if (f.id === "burnout") S.mp = 35;
+    Sound.win(); sceneStats();
+    await say(`จ่ายแล้ว ✔` + (S.forced.length ? ` เหลืออีก ${S.forced.length} บิล` : " รับงานใหม่ได้แล้ว"));
+  }
+  for (const v of S.invites.filter((v) => v.to === b.id && v.status === "accepted")) {
+    textEl.textContent = `♥ ${v.title}`;
+    await say(v.text);
+    const ok = await payFlow(v.cost, v.title, true, "fun", v.e);
+    S.invites = S.invites.filter((x) => x !== v);
+    if (ok) { S.mp = clamp(S.mp + v.mp, 0, 100); Sound.win(); sceneStats(); await say(`สนุกมาก! ✨ +${v.mp}`); }
+  }
+  if (S.quest && ((S.quest.stage === "pickup" && S.quest.from === b.id) || (S.quest.stage === "go" && S.quest.to === b.id))) await questAt(b);
+  for (;;) {
+    let opts = [];
+    if (b.id === "home") opts = [{ k: "nap", label: "😴 นอนถึงพรุ่งนี้" }, { k: "sleep", label: "🌙 ข้ามไปสิ้นเดือน", cls: "primary" }];
+    if (b.id === "bank") opts = [{ k: "debt", label: "💳 โปะหนี้บัตร", disabled: S.debt < 1 }, { k: "wd", label: "🏧 ถอนเงินเก็บ", disabled: S.save < 1 },
+      { k: "sellm", label: "📉 ขายมอน", disabled: !S.team.some((m) => !m.scam && m.value > 1) }, { k: "dist", label: "🔁 แบ่งเงิน" }];
+    if (b.id === "office") opts = [{ k: "ot", label: "💼 ทำโอที (2 วัน)", cls: "primary", disabled: !!S.mflag.ot }];
+    if (b.id === "jobs") opts = Object.entries(MG).map(([k, g]) => ({ k: "job:" + k, label: `${g.e} ${g.name}`, cls: "primary" }));
+    if (b.id === "library") opts = [{ k: "study", label: "🔍 ศึกษามอน (✨ −2)", disabled: !S.team.some((m) => !m.known) }, { k: "tip", label: "📖 เกร็ดความรู้" }];
+    if (b.id === "clinic") opts = [{ k: "check", label: "🩺 ตรวจสุขภาพ " + baht(S.salary * 0.02), disabled: S.checkup > 0 }];
+    (SHOP[b.id] || []).forEach((it, i) => {
+      const price = it[2] === "8%" ? Math.round(S.salary * 0.08) : it[2];
+      opts.push({ k: "buy:" + i, label: `${it[0]} ${it[1]}<br><span class="num">${baht(price)}</span>${it[3] ? ` +${it[3]}✨` : ""}`, disabled: (it[4] === "mallOnce" && S.mflag.mall) || (it[4] === "gym" && S.gym > 0) || (it[4] === "carcheck" && S.carcheck > 0) });
+    });
+    opts.push({ k: "out", label: "🚪 ออกไปข้างนอก", wide: true });
+    textEl.textContent = GREET[b.id] || "ยินดีต้อนรับ";
+    const c = await choose(opts);
+    if (c.k === "out") break;
+    if (c.k === "nap") { const to = S.day * DAY_SEC(); if (S.day >= CFG.days) { await say("สิ้นเดือนแล้ว ข้ามได้เลย"); continue; } S.quiet = true; advance(to - S.t + 0.001); S.quiet = false; sceneStats(); await say(`☀️ เช้าวันที่ ${S.day}`); continue; }
+    if (c.k === "sleep") {
+      if (S.forced.length) { await say(`ยังค้าง ${S.forced.length} บิล ข้ามไปจะโดนปรับ 5%`); const y = await choose([{ k: "y", label: "ข้ามเลย", cls: "danger" }, { k: "n", label: "ไม่ดีกว่า", cls: "primary" }]); if (y.k === "n") continue; }
+      await endOfMonth(); return;
+    }
+    if (c.k === "debt") {
+      const src = await choose([{ k: "wallet", label: `👛 เงินเดือน<br><span class="num">${baht(S.wallet)}</span>`, disabled: S.wallet < 1 }, { k: "left", label: `💰 เงินเหลือ<br><span class="num">${baht(S.left)}</span>`, disabled: S.left < 1 }, { k: "save", label: `🐷 เงินเก็บ<br><span class="num">${baht(S.save)}</span>`, disabled: S.save < 1 }, { k: "x", label: "ยกเลิก" }]);
+      if (src.k === "x") continue;
+      const a = await amountPanel({ e: "💳", title: "โปะหนี้บัตร", sub: `หนี้ ${baht(S.debt)} · จ่ายจาก${ACC[src.k].n}`, max: Math.min(S.debt, S[src.k]) });
+      scene({ e: b.e, img: "b-" + b.id, name: b.name, sub: "" });
+      if (a) { S[src.k] -= a; payDebt(a); record("💳", "โปะหนี้บัตร", -a, ACC[src.k].e, null); Sound.coin(); sceneStats(); await say(`โปะ ${baht(a)} · เหลือหนี้ ${baht(S.debt)}`); }
+      continue;
+    }
+    if (c.k === "wd") { const a = await amountPanel({ e: "🏧", title: "ถอนเงินเก็บ", sub: "เข้า 👛 เงินเดือน", max: S.save, def: 0 }); scene({ e: b.e, img: "b-" + b.id, name: b.name, sub: "" }); if (a) { S.save -= a; S.wallet += a; record("🏧", "ถอนเงินเก็บ", a, "🐷→👛", null); sceneStats(); await say(`ถอน ${baht(a)} แล้ว`); } continue; }
+    if (c.k === "sellm") {
+      const m = await pickMonster(S.team.filter((m) => !m.scam && m.value > 1), "ขายมอนตัวไหน?"); if (!m) continue;
+      const D = SPECIES[m.sp], a = await amountPanel({ e: D.e, title: `ขาย${D.name}`, sub: `มูลค่า ${baht(m.value)}${D.liq < 1 ? ` · ขายด่วนเสีย ${Math.round((1 - D.liq) * 100)}%` : ""}`, max: m.value, def: 0 });
+      scene({ e: b.e, img: "b-" + b.id, name: b.name, sub: "" });
+      if (a) { const got = a * D.liq, share = a / m.value; m.invested -= m.invested * share; m.value -= a; if (m.value < 1) S.team = S.team.filter((t) => t !== m); S.wallet += got; record(D.e, `ขาย${D.name}`, got, "👛", null); Sound.coin(); sceneStats(); await say(`ขายได้ ${baht(got)}`); }
+      continue;
+    }
+    if (c.k === "dist") {
+      const src = await choose([{ k: "wallet", label: `👛 บัญชีเงินเดือน<br><span class="num">${baht(S.wallet)}</span>`, disabled: S.wallet < 1 }, { k: "left", label: `💰 เงินเหลือ<br><span class="num">${baht(S.left)}</span>`, disabled: S.left < 1 }, { k: "save", label: `🐷 เงินเก็บ<br><span class="num">${baht(S.save)}</span>`, disabled: S.save < 1 }, { k: "x", label: "ยกเลิก" }]);
+      if (src.k === "x") continue;
+      await distPanel({ src: src.k, title: "แบ่งเงิน", cancel: true }); scene({ e: b.e, img: "b-" + b.id, name: b.name, sub: "" }); continue;
+    }
+    if (c.k === "ot") { S.mflag.ot = 1; const pay = Math.round(S.salary * rand(0.1, 0.15)); S.mp = clamp(S.mp - 8, 0, 100); S.quiet = true; advance(DAY_SEC() * 2); S.quiet = false; income(pay, "job", "ค่าโอที", "💼"); Sound.coin(); sceneStats(); await say(`โอที 2 วัน +${baht(pay)} (✨ −8)`); continue; }
+    if (c.k.startsWith("job:")) { await doJob(c.k.slice(4), 1); scene({ e: b.e, img: "b-" + b.id, name: b.name, sub: "" }); continue; }
+    if (c.k === "study") { S.team.forEach((m) => { if (!m.known) { m.known = true; S.stats.studied++; } }); S.mp = clamp(S.mp - 2, 0, 100); sceneStats(); await say("🔍 เห็นค่าพลังมอนแล้ว ดูใน 📈 พอร์ต"); continue; }
+    if (c.k === "tip") { await say("💡 " + pick(TIPS)); continue; }
+    if (c.k === "check") { const fee = Math.round(S.salary * 0.02); const ok = await payFlow(fee, "ตรวจสุขภาพ", true, "health", "🩺"); if (ok) { S.checkup = 2; sceneStats(); await say("🩺 ตรวจแล้ว ป่วยยากขึ้น 2 เดือน"); } continue; }
+    if (c.k.startsWith("buy:")) {
+      const it = SHOP[b.id][+c.k.slice(4)], price = it[2] === "8%" ? Math.round(S.salary * 0.08) : it[2];
+      quickPay(price, it[3] ? "fun" : "other", it[1], it[0]);
+      if (it[3]) S.mp = clamp(S.mp + it[3], 0, 100);
+      if (it[4] === "mallOnce") S.mflag.mall = 1; if (it[4] === "gym") S.gym = 2; if (it[4] === "carcheck") S.carcheck = 2;
+      if (it[4] === "fridge12") S.fridge += 12; if (it[4] === "fridge4") S.fridge += 4;
+      if (it[4] === "daytrip") { S.quiet = true; advance(DAY_SEC()); S.quiet = false; }
+      Sound.coin(); sceneStats();
+      await say(`${it[0]} −${baht(price)}${it[3] ? ` · ✨ +${it[3]}` : ""}${it[4] && it[4].startsWith("fridge") ? ` · 🧊 ${S.fridge} มื้อ` : ""}${it[4] === "gym" ? " · ป่วยยากขึ้น" : ""}${it[4] === "carcheck" ? " · รถเสียยากขึ้น" : ""}`);
+      continue;
+    }
+  }
+  stepOut(b);
+}
+
+/* ---------- people ---------- */
+async function talk(n) {
+  scene({ e: n.e, img: "n-" + n.id, name: n.name, sub: S.talked.has(n.id) ? "คุยแล้วเดือนนี้" : "มีเรื่องจะคุย" }); Sound.appear();
+  if (S.talked.has(n.id)) { await say("เจอกันเดือนหน้านะ 👋"); return; }
+  S.talked.add(n.id);
+  if (n.talk === "tip") { await say("💡 " + pick(TIPS)); return; }
+  if (n.talk === "lend") {
+    const amt = Math.round(S.income * 0.08 / 100) * 100;
+    await say(`ขอยืม ${baht(amt)} หน่อย เดือนหน้าคืนแน่!`);
+    const c = await choose([{ k: "y", label: "🤝 ให้ยืม" }, { k: "n", label: "🙅 ไม่ให้" }]);
+    if (c.k === "y") {
+      if (S.wallet < amt) { await say("เงินไม่พอให้ยืม"); return; }
+      S.wallet -= amt; record("🤝", "ให้เพื่อนยืม", -amt, "👛", "other"); sceneStats(); await say("ให้ยืมแล้ว หวังว่าจะได้คืน…");
+      if (Math.random() < 0.55) S.pending.push({ m: S.month + 1, kind: "repay", amt });
+    } else { S.mp = clamp(S.mp - 5, 0, 100); sceneStats(); await say("ปฏิเสธไป (✨ −5)"); }
+  }
+  if (n.talk === "chain") {
+    const amt = Math.round(S.salary * 0.12 / 100) * 100;
+    await say(`ป้าชวนเล่นแชร์ "2 เดือน ได้คืน 2 เท่า!" ลง ${baht(amt)}`);
+    const c = await choose([{ k: "y", label: "💸 ลงเงิน", cls: "warn" }, { k: "n", label: "🧐 ขอดูหลักฐาน" }]);
+    if (c.k === "y") {
+      if (S.wallet + S.left < amt) { await say("เงินไม่พอ… โชคดีไป"); return; }
+      quickPay(amt, "other", "ลงวงแชร์", "💸"); S.stats.scamLost += amt; S.pending.push({ m: S.month + 2, kind: "chainbust", amt }); sceneStats(); await say("โอนแล้ว… รอดูผล");
+    } else { S.stats.studied++; await say("ป้าตอบไม่ได้ ไม่มีใบอนุญาต ไม่ลงดีกว่า ✔"); }
+  }
+  if (n.talk === "install") {
+    const per = Math.round(S.salary * 0.05 / 10) * 10;
+    await say("มือถือใหม่! ผ่อน 0% 10 เดือน ไม่ต้องดาวน์");
+    const c = await choose([{ k: "y", label: "📲 ผ่อนเลย" }, { k: "n", label: "✋ เครื่องเดิมยังดี" }]);
+    if (c.k === "y") { S.mp = clamp(S.mp + 18, 0, 100); S.installment += per; Sound.coin(); sceneStats(); await say(`ได้มือถือใหม่! ✨ +18 · ผ่อนเดือนละ ${baht(per)}`); }
+    else { S.mp = clamp(S.mp - 3, 0, 100); sceneStats(); await say("อดใจได้ เงินอยู่ครบ (✨ −3)"); }
+  }
+  if (n.talk === "course") {
+    const fee = Math.round(S.salary * 0.1 / 100) * 100;
+    await say(`คอร์สเพิ่มทักษะ อาจได้ขึ้นเงินเดือน ค่าเรียน ${baht(fee)}`);
+    const c = await choose([{ k: "y", label: "📚 ลงเรียน" }, { k: "n", label: "⏭️ ไว้ก่อน" }]);
+    if (c.k === "y") { const ok = await payFlow(fee, "ค่าคอร์สเรียน", true, "other", "📚"); if (ok) { S.pending.push({ m: S.month + 2, kind: "raise" }); sceneStats(); await say("ลงเรียนแล้ว! 📚"); } }
+    else await say("ไว้ค่อยว่ากัน");
+  }
+}
+
+/* ---------- wild monsters in the meadows ---------- */
+function monCard(m) {
+  const D = SPECIES[m.sp], k = m.known;
+  const statRow = (label, v, max, color, txt) => `<div class="stat"><span>${label}</span><span class="sbar"><i style="width:${k ? clamp((v / max) * 100, 3, 100) : 0}%;background:${color}"></i></span><span class="val">${k ? txt : "???"}</span></div>`;
+  return `<div class="card mcard"><div class="orb" aria-hidden="true"><img src="${imgSrc("m-" + m.sp)}" alt=""></div><div style="min-width:0;display:flex;flex-direction:column;gap:4px">
+    <h3>${D.name}</h3><div class="kind">${D.kind} · ชนิด${TYPE_TH[D.type]}</div>
+    ${k ? `<div class="stars" aria-label="${m.star} ดาว">${"★".repeat(m.star)}${"☆".repeat(3 - m.star)}</div>` : `<div class="ad">โฆษณา: “${D.ad}”</div>`}
+    ${statRow("⚔️ โต/ปี", m.scam ? 60 : m.ret, 15, "var(--lime)", m.scam ? "5%/ด." : m.ret.toFixed(1) + "%")}
+    ${statRow("🎲 แกว่ง", m.vol, 80, "var(--sun)", m.vol.toFixed(0) + "%")}
+    ${statRow("🩸 ค่าธรรม.", m.fee, 2.5, "var(--red)", m.fee.toFixed(2) + "%")}
+    ${m.div > 0 || !k ? statRow("🍎 เงินสด", m.div, 6, "var(--blue)", m.div.toFixed(1) + "%") : ""}
+    <div class="trait ${k && m.badTrait ? "badt" : ""}">ลักษณะ: ${k ? m.trait : "??? (ต้องศึกษาก่อน)"}</div>
+  </div></div>`;
+}
+async function catchEvent(w) {
+  const sp = w.sp, D = SPECIES[sp], m = makeMonster(sp, false);
+  const p = scene({ e: D.e, img: "m-" + sp, name: D.name + " ตัวป่า", sub: "ชนิด" + TYPE_TH[D.type] }); Sound.appear(); anim("orb", "pulse");
+  const extra = $("#extra", p);
+  extra.innerHTML = monCard(m);
+  for (;;) {
+    textEl.textContent = m.known ? "จะเอายังไงดี?" : `"${D.ad}" เชื่อเลยไหม?`;
+    const c = await choose([
+      ...(!m.known ? [{ k: "study", label: "🔍 ศึกษาก่อน (✨ −2)", cls: "primary" }] : []),
+      { k: "catch", label: m.scam ? "🎯 จับ (ต้องโอนเงินก่อน)" : "🎯 จับเข้าทีม", cls: "green" },
+      { k: "pass", label: "👋 ปล่อยไป" },
+    ]);
+    if (c.k === "study") {
+      m.known = true; S.stats.studied++; S.mp = clamp(S.mp - 2, 0, 100); extra.innerHTML = monCard(m); sceneStats();
+      if (m.scam) { Sound.bad(); await say("⚠️ ไม่มีใบอนุญาต ไม่มีธุรกิจจริง = แชร์ลูกโซ่!"); }
+      else await say(m.badTrait ? `ระวัง! ตัวนี้${m.trait}` : `★${m.star} · ${m.trait}`);
+      continue;
+    }
+    if (c.k === "pass") { S.wild = S.wild.filter((x) => x !== w); await say("ปล่อยไปแล้ว 👋"); break; }
+    if (S.team.length >= 4) {
+      await say("ทีมเต็ม (4 ตัว) ปล่อยตัวเก่า 1 ตัว ได้เงินคืน");
+      const old = await pickMonster(S.team.filter((t) => !t.scam), "ปล่อยตัวไหน?"); if (!old) continue;
+      const got = old.value * SPECIES[old.sp].liq; S.wallet += got; S.team = S.team.filter((t) => t !== old); record(SPECIES[old.sp].e, `ปล่อย${SPECIES[old.sp].name} ได้เงินคืน`, got, "👛", null); sceneStats();
+      await say(`ได้เงินคืน ${baht(got)}`);
+    }
+    if (m.scam) {
+      const dep = Math.round(S.salary * 0.15 / 100) * 100;
+      await say(`โอนก่อน ${baht(dep)} ถึงได้ "ผลตอบแทนการันตี"`);
+      const ok = await payFlow(dep, "โอนให้ยูนิคอร์นทองคำ", true, "other", "🦄");
+      if (!ok) { await say("ไม่โอน ยูนิคอร์นบินหนีไป"); S.wild = S.wild.filter((x) => x !== w); break; }
+      m.value = dep; m.invested = dep; m.caughtAt = S.month; m.mStart = 0; m.mIn = dep; S.stats.scamLost += dep;
+    }
+    S.team.push(m); dexAdd(sp); S.wild = S.wild.filter((x) => x !== w); Sound.win(); sceneStats();
+    await say(m.scam ? `โอนแล้ว ${baht(m.value)}… รอ "ผลตอบแทน"` : `จับได้แล้ว! ใส่เงินได้ที่ 📱 → 👛 กระเป๋า`); break;
+  }
+}
+
+/* ---------- month end: bills, boss, report ---------- */
+async function endOfMonth() {
+  mode = "busy";
+  S.quiet = true; if (S.t < CFG.monthSec) advance(CFG.monthSec - S.t); finishMeals(); checkOverdue(true); S.quiet = false;
+  if (S.month === S.crisisMonth) await bossFight();
+  monthEnd();
+  const moved = S.wallet; S.left += S.wallet; S.wallet = 0;
+  if (S.checkup > 0) S.checkup--;
+  await report(moved);
+  if (S.month >= S.months) { ending(); return; }
+  S.month++; await startMonth();
+}
+async function bossFight() {
+  const cr = pick(CRISES);
+  scene({ e: cr.e, img: "x-" + cr.id, name: "บอส: " + cr.name, sub: "วิกฤตเศรษฐกิจ (สมมติ)", boss: true }); Sound.boss(); anim("orb", "shake");
+  await say(`👹 ${cr.name} บุกเมือง! ${cr.text}`);
+  const lines = [];
+  S.team.forEach((m) => {
+    if (m.scam) return; const h = cr.hit[SPECIES[m.sp].type] || 0, before = m.value; m.value *= 1 + h; m.mGrow += m.value - before;
+    if (h < 0) S.rebound.push({ id: m.id, days: 60, amt: -h * 0.45 });
+    if (before > 0) lines.push(`${SPECIES[m.sp].e} ${h === 0 ? "รอด" : pct(h * 100, 0)}`);
+  });
+  if (lines.length) { Sound.hit(); await say(lines.join(" · ")); }
+  if (cr.incomeHit && cr.incomeHit[S.cls]) { S.lastIncomeHit = cr.incomeHit[S.cls]; await say(`รายได้เดือนหน้า −${Math.round(cr.incomeHit[S.cls] * 100)}%`); }
+  if (cr.costUp) S.costUp = 1;
+  if (cr.cost) { const c = Math.round(S.income * cr.cost); await say(`ค่าเสียหาย ${baht(c)}`); await payFlow(c, cr.name, false, "emerg", cr.e); }
+  const hurt = S.team.filter((m) => !m.scam && m.value > 1 && (cr.hit[SPECIES[m.sp].type] || 0) < 0);
+  if (!hurt.length) { await say("ทีมรอด ไม่เจ็บมาก 💪"); return; }
+  const c = await choose([
+    { k: "hold", label: "🧘 ถือต่อ", cls: "primary" },
+    { k: "panic", label: "🏃 ขายทิ้ง", cls: "danger" },
+    { k: "buy", label: "🛒 ใช้เงินเก็บซื้อเพิ่ม", disabled: S.save < S.income * 0.1 },
+  ]);
+  if (c.k === "hold") await say("ถือต่อ ยังไม่ขาย = ยังไม่ขาดทุนจริง");
+  if (c.k === "panic") {
+    let got = 0; hurt.forEach((m) => { got += m.value * SPECIES[m.sp].liq; S.stats.soldInCrisis += m.value; S.rebound = S.rebound.filter((r) => r.id !== m.id); m.value = 0; m.invested = 0; });
+    S.team = S.team.filter((m) => m.value > 1 || m.scam); S.wallet += got; record("🏃", "ขายมอนตอนวิกฤต", got, "👛", null); Sound.bad(); sceneStats(); await say(`ขายได้ ${baht(got)} · ขาดทุนจริงแล้ว`);
+  }
+  if (c.k === "buy") {
+    const amt = Math.round(S.save * 0.5), tgt = hurt.sort((a, b) => b.value - a.value)[0];
+    S.save -= amt; tgt.value += amt; tgt.invested += amt; tgt.mIn += amt; S.rebound.push({ id: tgt.id, days: 60, amt: 0.04 }); Sound.coin(); sceneStats();
+    await say(`ใช้เงินเก็บ ${baht(amt)} ซื้อเพิ่ม (เงินสำรองลดลง)`);
+  }
+}
+function monthEnd() {
+  S.moves = [];
+  const si = S.save * 0.005 / 12; if (si > 0) { S.save += si; S.cat.saveint = si; }
+  for (const m of [...S.team]) {
+    if (m.scam && S.month - m.caughtAt >= 2) { S.moves.push({ m, gone: true, end: 0 }); S.team = S.team.filter((t) => t !== m); continue; }
+    const cashOut = m.scam ? 0 : m.value * m.div / 100 / 12;
+    if (cashOut > 0.5) { S.left += cashOut; record("🍎", `${SPECIES[m.sp].name} จ่ายเงินสด`, cashOut, "💰", "gift"); }
+    S.moves.push({ m, end: m.value, cashOut });
+  }
+}
+function report(moved) {
+  return new Promise((resolve) => {
+    const C = S.cat, spend = [["🍜 ค่ากิน", C.food], ["🏠 ค่าเช่า/บิล", C.bills], ["⚠️ เรื่องไม่คาดฝัน", C.emerg], ["✨ ความสุข/เที่ยว", C.fun], ["🩺 สุขภาพ", C.health], ["🛵 จิปาถะ", C.other]].filter((x) => x[1] > 0.5);
+    const earn = [["🧰 งานเสริม/ภารกิจ", C.job], ["🎁 รายได้อื่น", C.gift]].filter((x) => x[1] > 0.5);
+    const p = modal(`
+      <div class="head"><div class="badge">📈</div><div><h2>สรุปเดือนที่ ${S.month}</h2><div class="muted">ตัวเลขจำลอง</div></div></div>
+      <div class="card"><b style="font-family:var(--font-head)">📈 เงินลงทุน</b>
+        <div style="overflow-x:auto"><table class="rep"><thead><tr><th>มอน</th><th class="r">ต้นเดือน</th><th class="r">ใส่เพิ่ม</th><th class="r">โต/ลด</th><th class="r">ตอนนี้</th></tr></thead><tbody>
+        ${S.moves.map(({ m, gone, end }) => { const D = SPECIES[m.sp]; return `<tr><td>${D.e} ${D.name}${gone ? ' <b class="down">หายไป!</b>' : m.scam ? ' <span class="muted">(ปลอม)</span>' : ""}${m.mFee > 0.5 ? `<br><small class="muted">ค่าธรรมเนียม -${baht(m.mFee)}</small>` : ""}</td>
+          <td class="r num">${baht(m.mStart)}</td><td class="r num">${m.mIn ? "+" + baht(m.mIn) : "-"}</td><td class="r num ${m.mGrow >= 0 && !gone ? "up" : "down"}">${gone ? "-" + baht(m.value) : (m.mGrow >= 0 ? "+" : "") + baht(m.mGrow)}</td><td class="r num">${baht(end)}</td></tr>`; }).join("") || `<tr><td colspan="5">ยังไม่มีมอน</td></tr>`}
+        </tbody></table></div>
+      </div>
+      ${S.moves.some((x) => x.gone) ? `<p class="hint red">🦄 ยูนิคอร์นหายไปพร้อมเงิน = แชร์ลูกโซ่</p>` : ""}
+      <div class="card"><b style="font-family:var(--font-head)">👛 เงินไปไหน</b><div class="lines" style="margin-top:4px">
+        <div><span>💼 เงินเดือน</span><b class="up">+${baht(S.income)}</b></div>
+        ${earn.map(([n, v]) => `<div><span>${n}</span><b class="up">+${baht(v)}</b></div>`).join("")}
+        ${spend.map(([n, v]) => `<div><span>${n}</span><b class="down">-${baht(v)}</b></div>`).join("")}
+      </div></div>
+      <div class="card grid2">
+        <div><span class="muted">💰 เงินเหลือ</span><br><b class="num">${baht(S.left)}</b></div>
+        <div><span class="muted">🐷 เงินเก็บ</span><br><b class="num">${baht(S.save)}</b></div>
+        <div><span class="muted">📈 ลงทุน</span><br><b class="num">${baht(invTotal())}</b></div>
+        <div><span class="muted">💳 หนี้บัตร</span><br><b class="num ${S.debt > 0.5 ? "down" : ""}">${baht(S.debt)}</b></div>
+        <div><span class="muted">✨ ความสุข</span><div class="bar mp"><i style="width:${S.mp}%"></i></div></div>
+        <div><span class="muted">💎 สุทธิ</span><br><b class="num">${baht(netWorth())}</b></div>
+      </div>
+      ${S.debt > 0.5 ? `<p class="hint">💳 ค้างถึงเดือนหน้า โดนหักเอง</p>` : ""}
+      <button class="btn green" id="nx">${S.month < S.months ? `ไปเดือนที่ ${S.month + 1} →` : "ดูผลรวม 🏆"}</button>`);
+    Sound.win();
+    $("#nx", p).onclick = () => { Sound.blip(); resolve(); };
+  });
+}
+function ending() {
+  mode = "busy"; S.over = true;
+  const inv = invTotal(), net = netWorth(), ratio = net / Math.max(1, S.incomeTotal);
+  const score = Math.max(0, Math.round((ratio * 1000 + S.mp * 4 + S.questsDone * 6) * (0.6 + 0.4 * S.mp / 100)));
+  const rank = score >= 700 ? "ปรมาจารย์การเงิน" : score >= 520 ? "จอมจัดงบ" : score >= 350 ? "นักวางแผนฝึกหัด" : "มือใหม่หัดออม";
+  const best = store.get(BEST_KEY, 0), isBest = score > best; if (isBest) store.set(BEST_KEY, score);
+  const dex = store.get(DEX_KEY, []);
+  const L = [];
+  L.push(`🍜 ค่ากิน ${baht(S.foodSpent)} · เล็กๆ รวมกันก็ก้อนใหญ่`);
+  if (S.stats.shieldUses) L.push(`🐷 เงินเก็บช่วยไว้ ${S.stats.shieldUses} ครั้ง ไม่ต้องเป็นหนี้`);
+  if (S.stats.cardInterest > 1) L.push(`💳 เสียดอกเบี้ยบัตร ${baht(S.stats.cardInterest)}`);
+  if (S.stats.autoDebt > 1) L.push(`⚠️ โดนหักหนี้ค้าง ${baht(S.stats.autoDebt)}`);
+  if (S.stats.failed) L.push(`⌛ ไปนัดไม่ทัน ${S.stats.failed} ครั้ง`);
+  if (S.stats.late) L.push(`⏰ จ่ายบิลช้า ${S.stats.late} ครั้ง โดนปรับ`);
+  if (S.stats.feesPaid > 1) L.push(`🩸 ค่าธรรมเนียม ${baht(S.stats.feesPaid)} · ถือนานยิ่งเห็นชัด`);
+  if (S.stats.scamLost > 0) L.push(`🦄 เสียให้แชร์ลูกโซ่ ${baht(S.stats.scamLost)} · การันตีสูง = ระวัง`);
+  if (S.stats.soldInCrisis > 0) L.push("🏃 ขายตอนวิกฤต = ขาดทุนจริง");
+  if (S.jobsDone) L.push(`🧰 ทำงานเสริม ${S.jobsDone} ครั้ง`);
+  const p = modal(`
+    <div class="head"><div class="badge">🏆</div><div><h2>จบ ${S.months} เดือน</h2><div class="rank">${rank}</div></div></div>
+    <div class="card" style="text-align:center"><div class="big">${score.toLocaleString("en-US")}</div><div class="muted">คะแนน${isBest ? " · สถิติใหม่!" : " · สถิติ " + best.toLocaleString("en-US")}</div></div>
+    <div class="card grid2">
+      <div><span class="muted">รายได้รวม</span><br><b class="num">${baht(S.incomeTotal)}</b></div><div><span class="muted">สุทธิ</span><br><b class="num">${baht(net)}</b></div>
+      <div><span class="muted">💰+👛 เงินเหลือ</span><br><b class="num">${baht(S.left + S.wallet)}</b></div><div><span class="muted">🐷 เงินเก็บ</span><br><b class="num">${baht(S.save)}</b></div>
+      <div><span class="muted">📈 ลงทุน</span><br><b class="num">${baht(inv)}</b></div><div><span class="muted">💳 หนี้</span><br><b class="num">${baht(S.debt)}</b></div>
+      <div><span class="muted">🎯 ภารกิจสำเร็จ</span><br><b class="num">${S.questsDone}</b></div><div><span class="muted">✨ ความสุข</span><br><b class="num">${Math.round(S.mp)}</b></div>
+    </div>
+    <div class="card"><h3>ข้อสังเกต</h3><ul class="lessons">${L.map((l) => `<li>${l}</li>`).join("")}</ul></div>
+    <p class="muted">สมุดสะสม ${dex.length}/${Object.keys(SPECIES).length} · รอบหน้าเจอเรื่องใหม่</p>
+    <p class="foot">ทุกอย่างในเกมเป็นการจำลอง ไม่ใช่คำแนะนำการลงทุน</p>
+    <button class="btn primary" id="again">เล่นอีกรอบ</button>`);
+  Sound.win();
+  $("#again", p).onclick = () => { Sound.blip(); title(); disclaimer(); };
+}
+
+/* ================= boot ================= */
+genMap(); paintMap(); resize();
+loadImages().then(() => {
+  paintMap(); const lb = document.querySelector(".loadbar"); if (lb) lb.remove();
+  // warm the cache for screens opened later (minigames, bosses, icons)
+  const later = [...Array.from({ length: 7 }, (_, i) => "g-good" + i), ...Array.from({ length: 4 }, (_, i) => "g-bad" + i), ...Array.from({ length: 12 }, (_, i) => "g-book" + i), "g-cashier",
+    ...CRISES.map((c) => "x-" + c.id), "u-wallet", "u-leftover", "u-savings", "u-invest", "u-card", "u-happy", "u-phone", "u-fridge"];
+  later.forEach((k) => { if (!IMG[k]) { const i = new Image(); i.src = imgSrc(k); IMG[k] = i; } });
+});
+addEventListener("resize", resize);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (imgDone >= imgTotal) paintMap(); });
+window.__pq = { get S() { return S; }, CFG, get mode() { return mode; }, get mapCanvas() { return mapCanvas; }, P, TREES, LAMPS, img };
+title();
+})();
+</script>

@@ -1,0 +1,11 @@
+# ภาพต้นฉบับจาก ChatGPT (ใหญ่ 114 MB) — เกมใช้ img/ ที่ย่อแล้ว
+assets/
+backup/
+v1-retro/
+v2-openworld/
+audio/
+.claude/
+.DS_Store
+__pycache__/
+*.md
+!README.md
