@@ -243,6 +243,10 @@ ul.lessons { margin: 6px 0 0; padding-left: 20px; display: flex; flex-direction:
 .tag { display: inline-block; font-size: 13px; font-weight: 600; padding: 2px 10px; border-radius: 99px; background: #fff; color: var(--grape); }
 @media (prefers-reduced-motion: reduce) { .shake, .pulse, .speech .more, #ticker div { animation: none; } .bar i, .notif { transition: none; } }
 [hidden] { display: none !important; }
+.card.story { text-align: center; background: #fff7e6; } .card.story.won { background: #e8fff1; } .card.story p { margin: 4px 0; font-size: 17px; font-family: var(--font-head); }
+.nwbar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; margin: 6px 0 4px; background: #eee; }
+.nwbar i { background: #11914a; } .nwbar b { background: #ff9f1c; }
+.payamt { font-family: var(--font-head); font-size: 18px; color: var(--bad); }
 .trk { position: relative; }
 .trk .cdbar { position: absolute; left: 8px; right: 8px; bottom: 2px; height: 4px; border-radius: 4px; background: rgba(15,27,61,.12); overflow: hidden; }
 .trk .cdbar i { display: block; height: 100%; border-radius: 4px; background: #1e7bff; transition: width 1s linear; }
@@ -342,7 +346,34 @@ function loadImages() {
   return Promise.all(keys.map((k) => new Promise((res) => { const i = new Image(); i.decoding = "async"; i.onload = i.onerror = () => { imgDone++; const b = document.querySelector(".loadbar i"); if (b) b.style.width = (imgDone / imgTotal * 100) + "%"; res(); }; i.src = imgSrc(k); IMG[k] = i; })));
 }
 const CFG = { monthSec: 180, days: 15 };  // 15 game days (12 s each) — calmer; the total is never shown to the player
-const MEALS_PER_DAY = 3.6;              // each game day stands for ~2 real days of eating       // 1 month = 3 real minutes, 30 in-game days
+const MEALS_PER_DAY = 3.6;
+// ไอเดีย #35 ระดับความยาก
+const LEVELS = {
+  easy: { n: "ง่าย", e: "🌱", d: "เวลาเยอะ บิลน้อย", sec: 240, bills: [0, 1], dueAdd: 1, cd: 1.3, score: 0.9 },
+  normal: { n: "ปกติ", e: "⭐", d: "สมดุล", sec: 180, bills: [1, 2], dueAdd: 0, cd: 1, score: 1 },
+  hard: { n: "ยาก", e: "🔥", d: "เวลาน้อย บิลเยอะ", sec: 150, bills: [2, 3], dueAdd: -1, cd: 0.8, score: 1.25 },
+};
+// ไอเดีย #34 เนื้อเรื่อง: เลือกเป้าหมายชีวิต แล้วเก็บเงินให้ถึง
+const GOALS = {
+  trip: { e: "✈️", n: "เที่ยวต่างประเทศครั้งแรก", pct: 0.6, who: "แก๊งเพื่อน",
+    beats: ["เพื่อนชวนไปเที่ยวญี่ปุ่นปลายปี 🗾 ต้องเก็บเงินแล้ว!", "เพื่อนส่งรูปตั๋วโปรมาให้ดู 🎫 ใจสั่นเลย", "ใกล้ถึงวันเดินทางแล้ว 🧳 เก็บครบหรือยังนะ?"],
+    mid: "เพื่อนถาม: เก็บได้เท่าไรแล้ว? 🙈", win: "ได้บินไปเที่ยวกับเพื่อนจริงๆ! ✈️🗾", lose: "เพื่อนไปก่อน… รอบหน้าไปด้วยกันนะ 🥲" },
+  mom: { e: "🎁", n: "ของขวัญวันเกิดแม่", pct: 0.3, who: "แม่",
+    beats: ["อีกไม่นานวันเกิดแม่ 🎂 อยากซื้อของขวัญดีๆ ให้", "แม่โทรมาถามว่ากินข้าวหรือยัง 🥹", "พรุ่งนี้วันเกิดแม่แล้ว 💐"],
+    mid: "แม่ส่งสติกเกอร์มาว่า 'คิดถึงนะลูก' 💕", win: "แม่ยิ้มทั้งวันเลย 🥰 ของขวัญถูกใจมาก", lose: "ให้การ์ดทำมือไปก่อน แม่ก็ดีใจนะ 💌" },
+  study: { e: "🎓", n: "ทุนเรียนต่อ", pct: 1.0, who: "รุ่นพี่",
+    beats: ["อยากเรียนต่อปริญญาโท 🎓 ต้องมีเงินก้อนแรก", "รุ่นพี่แนะนำคอร์สดีๆ ให้ 📚", "ใกล้ปิดรับสมัครแล้ว ✍️"],
+    mid: "รุ่นพี่บอก: ค่อยๆ เก็บ เดี๋ยวก็ถึง 💪", win: "สมัครเรียนต่อได้แล้ว! 🎓✨", lose: "ยังไม่พอ… ปีหน้าลองใหม่ 📖" },
+};
+const goalTarget = () => S.goalStart + Math.round(S.salary * GOALS[S.goal].pct * (S.months / 3) / 500) * 500;
+// ไอเดีย #38 ความรู้: ยิ่งรู้ งานเสริมยิ่งได้มาก + มองเห็นค่าพลัง/กลโกงได้เอง
+const KNOW_SEE = 30;
+function learn(n, why) {
+  const before = S.know; S.know = clamp(S.know + n, 0, 100);
+  if (S.know > before) { float(`📚 +${S.know - before}`, "#1f5fa8"); if (before < KNOW_SEE && S.know >= KNOW_SEE) notify({ e: "📚", title: "ความรู้ถึง 30 แล้ว!", text: "ต่อไปมองเห็นค่าพลังมอนได้ทันที", tab: "inbox" }); }
+  return S.know - before;
+}
+const knowBonus = () => 1 + S.know / 200;  // สูงสุด +50%              // each game day stands for ~2 real days of eating       // 1 month = 3 real minutes, 30 in-game days
 const DAY_SEC = () => CFG.monthSec / CFG.days;
 const ACC = { wallet: { e: "👛", n: "บัญชีเงินเดือน" }, left: { e: "💰", n: "เงินเหลือ" }, save: { e: "🐷", n: "เงินเก็บ" } };
 const SPECIES = {
@@ -808,6 +839,7 @@ function newState(name, salary, cls, months) {
     talked: new Set(), runSeen: new Set(), mflag: {}, checkup: 0, gym: 0, carcheck: 0, lastAlloc: {}, questsDone: 0, jobsDone: 0, mealsHome: 0, mealsOut: 0, foodSpent: 0, quiet: false,
     crisisMonth: Math.random() < 0.75 ? 2 + Math.floor(Math.random() * Math.max(1, months - 2)) : 0,
     stats: { shieldUses: 0, cardUses: 0, cardInterest: 0, feesPaid: 0, studied: 0, scamLost: 0, soldInCrisis: 0, autoDebt: 0, late: 0 },
+    level: "normal", goal: "trip", goalStart: Math.round(salary * 0.5), know: 0,
   };
 }
 let monSeq = 1;
@@ -834,7 +866,7 @@ const netWorth = () => S.wallet + S.left + S.save + invTotal() - S.debt;
 function record(e, label, amt, acct, cat) {
   S.tx.unshift({ m: S.month, d: S.day, e, label, amt, acct });
   if (S.tx.length > 120) S.tx.length = 120;
-  if (cat) S.cat[cat] = (S.cat[cat] || 0) + Math.abs(amt);
+  if (cat) { S.cat[cat] = (S.cat[cat] || 0) + Math.abs(amt); S.allCat = S.allCat || {}; S.allCat[cat] = (S.allCat[cat] || 0) + Math.abs(amt); }
   if (!S.quiet) tickerLine(`${e} ${label} ${amt >= 0 ? "+" : "-"}${baht(Math.abs(amt)).replace("-", "")}`, amt >= 0 ? "p" : "m");
 }
 function income(amt, cat, label, e) {
@@ -939,7 +971,7 @@ function buildSchedule() {
   sc.push({ day: 1, kind: "forced", q: { id: "rent", e: "🏠", title: "ค่าเช่าห้อง", text: "ถึงรอบจ่ายค่าเช่าแล้ว", to: "home", cost: rent, cat: "bills" } });
   sc.push({ day: rint(3, 5), kind: "forced", q: { id: "util", e: "💡", title: "ค่าน้ำค่าไฟ", text: S.costUp ? "ค่าไฟแพงขึ้นเดือนนี้" : "บิลเดือนนี้มาแล้ว", to: "store", cost: util, cat: "bills" } });
   sc.push({ day: rint(6, 8), kind: "forced", q: { id: "tel", e: "📶", title: "ค่าโทรศัพท์ + เน็ตบ้าน", text: "ถึงรอบบิลรายเดือน", to: "phone", cost: tel, cat: "bills" } });
-  const nBills = Math.random() < 0.6 ? 1 : 2;
+  const LV = LEVELS[S.level] || LEVELS.normal, nBills = rint(LV.bills[0], LV.bills[1]);
   for (let i = 0; i < nBills; i++) {
     const ev = drawEvent("bill"); if (!ev) break;
     let cost = Math.round(S.income * rand(ev.cost[0], ev.cost[1]));
@@ -952,13 +984,18 @@ function buildSchedule() {
   return sc;
 }
 function fire(x) {
+  if (x.kind === "story") {  // กลางเดือน: คนในเรื่องทักมา + บอกว่าใกล้เป้าแค่ไหน
+    const G = GOALS[S.goal], left = goalTarget() - S.save;
+    notify({ e: G.e, title: `${G.who} ทักมา`, text: G.mid + (left > 0 ? ` · ขาดอีก ${baht(left)}` : " · ถึงเป้าแล้ว! 🎉"), tab: "wallet" });
+    return;
+  }
   const q = x.q;
   if (x.kind === "forced") addForced(q);
-  if (x.kind === "invite") { const it = { ...q, due: Math.min(CFG.days, S.day + 3), status: "pending" }; S.invites.push(it); notify({ e: q.e, title: "ชวน: " + q.title, text: `${q.text} · ${baht(q.cost)}`, tab: "inbox", invite: it }); }
+  if (x.kind === "invite") { const it = { ...q, due: Math.min(CFG.days, S.day + 3 + (LEVELS[S.level] || LEVELS.normal).dueAdd), status: "pending" }; S.invites.push(it); notify({ e: q.e, title: "ชวน: " + q.title, text: `${q.text} · ${baht(q.cost)}`, tab: "inbox", invite: it }); }
   if (x.kind === "good") { const amt = Math.round(S.income * rand(q.amt[0], q.amt[1])); income(amt, "gift", q.name, q.e); notify({ e: q.e, title: `${q.name} +${baht(amt)}`, text: fill(pick(q.text), q), tab: "wallet" }); Sound.coin(); }
 }
 function addForced(q) {
-  const f = { ...q, due: Math.min(CFG.days, S.day + 4) };
+  const f = { ...q, due: Math.min(CFG.days, S.day + Math.max(2, 4 + (LEVELS[S.level] || LEVELS.normal).dueAdd)) };
   S.forced.push(f);
   notify({ e: q.e, title: `ต้องจ่าย: ${q.title} ${baht(q.cost)}`, text: `📍 ${bname(q.to)} · ภายใน ${f.due - S.day} วัน`, tab: "quests", urgent: true });
 }
@@ -1083,7 +1120,7 @@ function updateHUD() {
   }
   const ip = $("#aIp"); ip.textContent = cost > 0 ? pct(g) : ""; ip.className = g >= 0 ? "up" : "down";
   $("#hMp").style.width = clamp(S.mp, 0, 100) + "%";
-  $("#hX").innerHTML = (S.debt > 0.5 ? `<span class="debt">${ico("u-card")}หนี้ ${baht(S.debt)}</span> ` : "") + (S.fridge > 0 ? `${ico("u-fridge")}${S.fridge} มื้อ` : "");
+  $("#hX").innerHTML = `📚 ${Math.round(S.know)} ` + (S.debt > 0.5 ? `<span class="debt">${ico("u-card")}หนี้ ${baht(S.debt)}</span> ` : "") + (S.fridge > 0 ? `${ico("u-fridge")}${S.fridge} มื้อ` : "");
   const unread = S.inbox.filter((n) => !n.read).length, nb = $("#nBadge"); nb.hidden = !unread; nb.textContent = unread;
   const tg = targets().filter((t) => !t.board);
   const key = JSON.stringify([tg.map((t) => t.kind + t.ref.id + (t.ref.stage || "") + (t.ref.due || "") + (t.kind === "invite" && t.ref.deadline != null ? Math.ceil(cdLeft(t.ref)) : "")), S.day]);
@@ -1170,6 +1207,7 @@ async function payFlow(cost, what, optional, cat, e) {
   let remain = Math.round(cost), usedSave = false; const parts = [];
   while (remain > 0.5) {
     const sellable = S.team.filter((m) => !m.scam && m.value > 1);
+    textEl.innerHTML = `<b class="payamt">💸 ${esc(what)} · ต้องจ่าย ${baht(remain)}</b><br><small>เลือกว่าจะจ่ายจากไหน</small>`;
     const c = await choose([
       { k: "wallet", label: `👛 บัญชีเงินเดือน<br><span class="num">${baht(S.wallet)}</span>`, cls: "primary", disabled: S.wallet < 1 },
       { k: "left", label: `💰 เงินเหลือ<br><span class="num">${baht(S.left)}</span>`, disabled: S.left < 1 },
@@ -1303,6 +1341,7 @@ function renderPhone() {
       <div class="acrow"><div class="ni">🐷</div><div><b>เงินเก็บ</b><small>เงินสำรองฉุกเฉิน</small></div><b class="v">${baht(S.save)}</b></div>
       <div class="acrow"><div class="ni">📈</div><div><b>ลงทุน (มอนทั้งทีม)</b><small>ทุน ${baht(invCost())} · ขึ้นลงทุกวัน</small></div><b class="v">${baht(inv)}</b></div>
       <div class="acrow"><div class="ni">💳</div><div><b>หนี้บัตร</b><small>ค้างเกิน 1 เดือน โดนหักเอง</small></div><b class="v ${S.debt > 0.5 ? "down" : ""}">${baht(S.debt)}</b></div>
+      ${goalCard()}
       <div class="card remain"><span class="muted">💎 รวมทั้งหมด (หักหนี้)</span><b class="big" style="font-size:22px">${baht(netWorth())}</b></div>
       <div class="row"><button class="btn green" id="dLeft" ${S.left < 1 ? "disabled" : ""}>💰 แบ่งเงินเหลือ</button><button class="btn" id="dWallet" ${S.wallet < 1 ? "disabled" : ""}>👛 แบ่งเงินเดือน</button></div>
       <div class="card"><h3 style="font-size:15px;margin-bottom:4px">รายการล่าสุด</h3><div class="txl">${S.tx.slice(0, 25).map((t) => `<div><span>${t.e} ${esc(t.label)} <small class="muted">ว.${t.d} ${t.acct ? "· " + t.acct : ""}</small></span><b class="${t.amt >= 0 ? "up" : "down"}">${t.amt >= 0 ? "+" : "-"}${baht(Math.abs(t.amt))}</b></div>`).join("") || "<p class='muted'>ยังไม่มีรายการ</p>"}</div></div>`;
@@ -1328,7 +1367,7 @@ function renderPhone() {
     <div class="ptabs">${tabs.map(([k, i, n, b]) => `<button class="ptab" data-t="${k}" aria-current="${k === phoneTab}"><span class="i">${i}</span>${n}${b ? `<span class="dot">${b}</span>` : ""}</button>`).join("")}</div>`, "phone");
   $("#pClose", p).onclick = () => { Sound.blip(); closePhone(); };
   p.querySelectorAll(".ptab").forEach((b) => (b.onclick = () => { Sound.blip(); phoneTab = b.dataset.t; renderPhone(); }));
-  p.querySelectorAll("[data-acc]").forEach((b) => (b.onclick = () => { const n = S.inbox.find((x) => x.id === +b.dataset.acc); const v = n.invite, bd = BMAP[v.to], dist = Math.abs(bd.dx - P.x) + Math.abs(bd.dy - P.y), lim = Math.round(clamp(20 + dist * 0.45, 30, 60));
+  p.querySelectorAll("[data-acc]").forEach((b) => (b.onclick = () => { const n = S.inbox.find((x) => x.id === +b.dataset.acc); const v = n.invite, bd = BMAP[v.to], dist = Math.abs(bd.dx - P.x) + Math.abs(bd.dy - P.y), lim = Math.round(clamp(20 + dist * 0.45, 30, 60) * (LEVELS[S.level] || LEVELS.normal).cd);
     v.status = "accepted"; v.deadline = S.t + lim; v.cdTotal = lim; v.due = CFG.days; S.focus = v; trackerKey = ""; Sound.coin(); toast(`⏳ ไป${bd.name}ให้ทันใน ${lim} วิ!`); renderPhone(); }));
   p.querySelectorAll("[data-dec]").forEach((b) => (b.onclick = () => { const n = S.inbox.find((x) => x.id === +b.dataset.dec); S.invites = S.invites.filter((v) => v !== n.invite); S.mp = clamp(S.mp - 4, 0, 100); Sound.blip(); renderPhone(); }));
   const qc = $("#qCancel", p); if (qc) qc.onclick = () => { S.quest = null; Sound.blip(); renderPhone(); };
@@ -1357,6 +1396,9 @@ function helpHTML() {
       <dt>🧭 นำทาง</dt><dd>แตะแถบภารกิจ เลือกว่าจะไปไหนก่อน</dd>
       <dt>⏳ นัดเพื่อน</dt><dd>มีเวลานับถอยหลัง ไปไม่ทัน = ล้มเหลว</dd>
       <dt>📋 บอร์ด</dt><dd>รับงานทีละ 1 หาเงินเพิ่ม</dd>
+      <dt>🎯 เป้าหมาย</dt><dd>เก็บเงินเก็บ 🐷 ให้ถึงเป้าก่อนจบเกม</dd>
+      <dt>📚 ความรู้</dt><dd>อ่านหนังสือ ลงคอร์ส → งานเสริมได้มากขึ้น</dd>
+      <dt>🎁 อยากได้</dt><dd>เที่ยว ช้อป ของชอบ · 🧺 จำเป็น = กิน บิล สุขภาพ</dd>
       <dt>🧰 งานเสริม</dt><dd>มินิเกม ยิ่งยาก ยิ่งได้มาก</dd>
       <dt>💳 หนี้บัตร</dt><dd>ค้างเกิน 1 เดือน โดนหักเอง</dd>
       <dt>🅰️ ปุ่ม A</dt><dd>คุย · เข้าร้าน · ดูบอร์ด · จับมอน</dd>
@@ -1376,7 +1418,7 @@ const MG = {
   cash: { e: "🧮", name: "แคชเชียร์ทอนเงิน", how: "เลือกเงินทอนที่ถูกต้อง ผิดโดนหักคะแนน", sec: { easy: 25, mid: 25, hard: 25 } },
   match: { e: "🧩", name: "จับคู่หนังสือ", how: "เปิดการ์ดทีละ 2 ใบ หาคู่ให้ครบ", sec: { easy: 30, mid: 30, hard: 30 } },
 };
-const jobPay = (diff) => Math.round(S.salary * DIFF[diff].pay / 10) * 10;
+const jobPay = (diff) => Math.round(S.salary * DIFF[diff].pay * (S ? knowBonus() : 1) / 10) * 10;
 function miniGame(game, diff) {
   return new Promise((resolve) => {
     const M = MG[game], sec = M.sec[diff];
@@ -1442,7 +1484,7 @@ function miniGame(game, diff) {
 }
 async function doJob(game, bonus) {
   scene({ e: MG[game].e, name: "งานเสริม: " + MG[game].name, sub: "≤ 30 วิ" });
-  textEl.textContent = "เลือกความยาก ยิ่งยาก ยิ่งได้มาก";
+  textEl.textContent = "เลือกความยาก ยิ่งยาก ยิ่งได้มาก" + (S.know ? ` · 📚 ความรู้ช่วย +${Math.round((knowBonus() - 1) * 100)}%` : "");
   const c = await choose([
     ...Object.entries(DIFF).map(([k, d]) => ({ k, label: `${d.n}<br><span class="num">สูงสุด ${baht(jobPay(k) * bonus)}</span>`, cls: k === "hard" ? "warn" : k === "mid" ? "primary" : "" })),
     { k: "no", label: "ไว้ก่อน" },
@@ -1500,7 +1542,8 @@ function howto() {
   $("#go", p).onclick = () => { Sound.blip(); setup(); };
 }
 function setup() {
-  let cls = store.get("pq_cls", "office"), starter = "wolf", months = store.get("pq_months", 3);
+  let cls = store.get("pq_cls", "office"), starter = "wolf", months = store.get("pq_months", 3), level = store.get("pq_level", "normal"), goal = store.get("pq_goal", "trip");
+  if (!LEVELS[level]) level = "normal"; if (!GOALS[goal]) goal = "trip";
   const p = modal(`
     <div class="head"><div class="badge">🧑</div><h2>สร้างตัวละคร</h2></div>
     <label class="field" for="nm">ชื่อเล่น<input type="text" id="nm" maxlength="16" placeholder="เช่น บีม" value="${esc(store.get("pq_name", ""))}"></label>
@@ -1508,6 +1551,10 @@ function setup() {
     <div class="chips">${[15000, 25000, 35000, 50000].map((v) => `<button class="btn" data-sal="${v}">${v.toLocaleString("en-US")}</button>`).join("")}</div>
     <div class="field">เล่นกี่เดือน</div>
     <div class="chips" id="mo">${[3, 6].map((v) => `<button class="btn" data-mo="${v}" aria-pressed="${v === months}">${v} เดือน (~${v * 3} นาที)</button>`).join("")}</div>
+    <div class="field">ความยาก</div>
+    <div class="chips" id="lv">${Object.entries(LEVELS).map(([k, l]) => `<button class="btn" data-lv="${k}" aria-pressed="${k === level}">${l.e} ${l.n}<br><small>${l.d}</small></button>`).join("")}</div>
+    <div class="field">เป้าหมายของเรื่อง</div>
+    <div class="picks" id="gl" style="grid-template-columns:1fr">${Object.entries(GOALS).map(([k, g]) => `<button class="pick" data-k="${k}" aria-pressed="${k === goal}"><span class="ic" aria-hidden="true">${g.e}</span><span><b>${g.n}</b><span class="d">เก็บเงินให้ถึงเป้าก่อนจบเกม</span></span></button>`).join("")}</div>
     <div class="field">อาชีพ</div>
     <div class="picks" id="cls">${Object.entries(CLASSES).map(([k, c]) => `<button class="pick" data-k="${k}" aria-pressed="${k === cls}"><span class="ic" aria-hidden="true">${c.ic}</span><span><b>${c.name}</b><span class="d">${c.d}</span></span></button>`).join("")}</div>
     <div class="field">มอนตัวแรก</div>
@@ -1518,13 +1565,17 @@ function setup() {
   p.querySelectorAll("[data-mo]").forEach((x) => (x.onclick = () => { months = +x.dataset.mo; p.querySelectorAll("[data-mo]").forEach((y) => y.setAttribute("aria-pressed", String(y === x))); Sound.blip(); }));
   const group = (id, set) => p.querySelectorAll(`#${id} .pick`).forEach((x) => (x.onclick = () => {
     p.querySelectorAll(`#${id} .pick`).forEach((y) => y.setAttribute("aria-pressed", "false")); x.setAttribute("aria-pressed", "true"); set(x.dataset.k); Sound.blip(); }));
-  group("cls", (k) => (cls = k)); group("st", (k) => (starter = k));
+  group("cls", (k) => (cls = k)); group("st", (k) => (starter = k)); group("gl", (k) => (goal = k));
+  p.querySelectorAll("[data-lv]").forEach((x) => (x.onclick = () => { level = x.dataset.lv; p.querySelectorAll("[data-lv]").forEach((y) => y.setAttribute("aria-pressed", String(y === x))); Sound.blip(); }));
   $("#start", p).onclick = () => {
     const sal = Math.round(+$("#sal").value);
     if (!(sal >= 8000 && sal <= 300000)) { const e = $("#err"); e.hidden = false; e.textContent = "ใส่เงินเดือนระหว่าง 8,000 ถึง 300,000 บาท"; return; }
     const name = ($("#nm").value || "นักผจญภัย").trim().slice(0, 16);
     store.set("pq_name", name); store.set("pq_salary", sal); store.set("pq_cls", cls); store.set("pq_months", months);
-    S = newState(name, sal, cls, months); S.team.push(makeMonster(starter, true)); dexAdd(starter);
+    store.set("pq_level", level); store.set("pq_goal", goal);
+    CFG.monthSec = LEVELS[level].sec;
+    S = newState(name, sal, cls, months); S.level = level; S.goal = goal;
+    S.team.push(makeMonster(starter, true)); dexAdd(starter);
     Sound.appear(); run(startMonth);
   };
 }
@@ -1548,6 +1599,9 @@ async function startMonth() {
   closeModal(); mode = "explore";
   S.sched.filter((x) => x.day === 1).forEach(fire);
   updateHUD();
+  const G = GOALS[S.goal], beat = G.beats[S.month === 1 ? 0 : S.month >= S.months ? 2 : 1];
+  notify({ e: G.e, title: `บทที่ ${S.month} · ${G.n}`, text: `${beat} 🎯 เก็บให้ถึง ${baht(goalTarget())}`, tab: "wallet" });
+  S.sched.push({ day: Math.ceil(CFG.days / 2), kind: "story" });
   toast(S.month === 1 ? "🏠 ไปจ่ายค่าเช่าที่บ้านก่อน (ตามลูกศร)" : `เดือนที่ ${S.month} เริ่มแล้ว!`);
 }
 function payday() {
@@ -1617,7 +1671,7 @@ function arrived() {
 }
 function smallEvent() {
   const ev = pick(SMALL);
-  if (ev.c) { quickPay(rint(ev.c[0], ev.c[1]), "other", ev.t, ev.e); if (ev.mp) S.mp = clamp(S.mp + ev.mp, 0, 100); }
+  if (ev.c) { quickPay(rint(ev.c[0], ev.c[1]), ev.mp ? "fun" : "other", ev.t, ev.e); if (ev.mp) S.mp = clamp(S.mp + ev.mp, 0, 100); }
   else income(rint(ev.g[0], ev.g[1]), "gift", ev.t, ev.e);
 }
 function interact() {
@@ -1665,7 +1719,7 @@ async function questAt(b) {
     if (q.mp) S.mp = clamp(S.mp + q.mp, 0, 100);
     if (q.fridge) S.fridge += q.fridge;
     if (q.check) S.checkup = 2;
-    if (q.study) S.team.forEach((m) => { if (!m.known) { m.known = true; S.stats.studied++; } });
+    if (q.study) { S.team.forEach((m) => { if (!m.known) { m.known = true; S.stats.studied++; } }); learn(5); }
     Sound.win(); sceneStats();
     await say(`สำเร็จ! ${q.mp ? `✨ +${q.mp}` : q.fridge ? `🧊 ตู้เย็นมี ${S.fridge} มื้อ` : q.check ? "🩺 ป่วยยากขึ้น 2 เดือน" : q.study ? "🔍 เห็นค่าพลังมอนแล้ว" : ""}`);
   }
@@ -1703,11 +1757,11 @@ async function enterBuilding(b) {
       { k: "sellm", label: "📉 ขายมอน", disabled: !S.team.some((m) => !m.scam && m.value > 1) }, { k: "dist", label: "🔁 แบ่งเงิน" }];
     if (b.id === "office") opts = [{ k: "ot", label: "💼 ทำโอที (1 วัน)", cls: "primary", disabled: !!S.mflag.ot }];
     if (b.id === "jobs") opts = Object.entries(MG).map(([k, g]) => ({ k: "job:" + k, label: `${g.e} ${g.name}`, cls: "primary" }));
-    if (b.id === "library") opts = [{ k: "study", label: "🔍 ศึกษามอน (✨ −2)", disabled: !S.team.some((m) => !m.known) }, { k: "tip", label: "📖 เกร็ดความรู้" }];
+    if (b.id === "library") opts = [{ k: "study", label: "🔍 ศึกษามอน (✨ −2)", disabled: !S.team.some((m) => !m.known) }, { k: "tip", label: "📖 อ่านหนังสือ (📚 +5)" }];
     if (b.id === "clinic") opts = [{ k: "check", label: "🩺 ตรวจสุขภาพ " + baht(S.salary * 0.02), disabled: S.checkup > 0 }];
     (SHOP[b.id] || []).forEach((it, i) => {
       const price = it[2] === "8%" ? Math.round(S.salary * 0.08) : it[2];
-      opts.push({ k: "buy:" + i, label: `${it[0]} ${it[1]}<br><span class="num">${baht(price)}</span>${it[3] ? ` +${it[3]}✨` : ""}`, disabled: (it[4] === "mallOnce" && S.mflag.mall) || (it[4] === "gym" && S.gym > 0) || (it[4] === "carcheck" && S.carcheck > 0) });
+      opts.push({ k: "buy:" + i, label: `${it[0]} ${it[1]}<br><span class="num">${baht(price)}</span>${it[3] ? ` +${it[3]}✨` : ""}<br><small>${it[3] ? "🎁 อยากได้" : "🧺 จำเป็น"}</small>`, disabled: (it[4] === "mallOnce" && S.mflag.mall) || (it[4] === "gym" && S.gym > 0) || (it[4] === "carcheck" && S.carcheck > 0) });
     });
     opts.push({ k: "out", label: "🚪 ออกไปข้างนอก", wide: true });
     textEl.textContent = GREET[b.id] || "ยินดีต้อนรับ";
@@ -1741,8 +1795,8 @@ async function enterBuilding(b) {
     }
     if (c.k === "ot") { S.mflag.ot = 1; const pay = Math.round(S.salary * rand(0.1, 0.15)); S.mp = clamp(S.mp - 8, 0, 100); S.quiet = true; advance(DAY_SEC()); S.quiet = false; income(pay, "job", "ค่าโอที", "💼"); Sound.coin(); sceneStats(); await say(`โอที 1 วัน +${baht(pay)} (✨ −8)`); continue; }
     if (c.k.startsWith("job:")) { await doJob(c.k.slice(4), 1); scene({ e: b.e, img: "b-" + b.id, name: b.name, sub: "" }); continue; }
-    if (c.k === "study") { S.team.forEach((m) => { if (!m.known) { m.known = true; S.stats.studied++; } }); S.mp = clamp(S.mp - 2, 0, 100); sceneStats(); await say("🔍 เห็นค่าพลังมอนแล้ว ดูใน 📈 พอร์ต"); continue; }
-    if (c.k === "tip") { await say("💡 " + pick(TIPS)); continue; }
+    if (c.k === "study") { S.team.forEach((m) => { if (!m.known) { m.known = true; S.stats.studied++; } }); S.mp = clamp(S.mp - 2, 0, 100); learn(4); sceneStats(); await say("🔍 เห็นค่าพลังมอนแล้ว · 📚 +4"); continue; }
+    if (c.k === "tip") { const got = (S.mflag.tips || 0) < 3 ? learn(5) : 0; S.mflag.tips = (S.mflag.tips || 0) + 1; await say("💡 " + pick(TIPS) + (got ? ` · 📚 +${got}` : "")); continue; }
     if (c.k === "check") { const fee = Math.round(S.salary * 0.02); const ok = await payFlow(fee, "ตรวจสุขภาพ", true, "health", "🩺"); if (ok) { S.checkup = 2; sceneStats(); await say("🩺 ตรวจแล้ว ป่วยยากขึ้น 2 เดือน"); } continue; }
     if (c.k.startsWith("buy:")) {
       const it = SHOP[b.id][+c.k.slice(4)], price = it[2] === "8%" ? Math.round(S.salary * 0.08) : it[2];
@@ -1764,7 +1818,7 @@ async function talk(n) {
   scene({ e: n.e, img: "n-" + n.id, name: n.name, sub: S.talked.has(n.id) ? "คุยแล้วเดือนนี้" : "มีเรื่องจะคุย" }); Sound.appear();
   if (S.talked.has(n.id)) { await say("เจอกันเดือนหน้านะ 👋"); return; }
   S.talked.add(n.id);
-  if (n.talk === "tip") { await say("💡 " + pick(TIPS)); return; }
+  if (n.talk === "tip") { learn(3); await say("💡 " + pick(TIPS) + " · 📚 +3"); return; }
   if (n.talk === "lend") {
     const amt = Math.round(S.income * 0.08 / 100) * 100;
     await say(`ขอยืม ${baht(amt)} หน่อย เดือนหน้าคืนแน่!`);
@@ -1795,7 +1849,7 @@ async function talk(n) {
     const fee = Math.round(S.salary * 0.1 / 100) * 100;
     await say(`คอร์สเพิ่มทักษะ อาจได้ขึ้นเงินเดือน ค่าเรียน ${baht(fee)}`);
     const c = await choose([{ k: "y", label: "📚 ลงเรียน" }, { k: "n", label: "⏭️ ไว้ก่อน" }]);
-    if (c.k === "y") { const ok = await payFlow(fee, "ค่าคอร์สเรียน", true, "other", "📚"); if (ok) { S.pending.push({ m: S.month + 2, kind: "raise" }); sceneStats(); await say("ลงเรียนแล้ว! 📚"); } }
+    if (c.k === "y") { const ok = await payFlow(fee, "ค่าคอร์สเรียน", true, "other", "📚"); if (ok) { S.pending.push({ m: S.month + 2, kind: "raise" }); learn(15); sceneStats(); await say("ลงเรียนแล้ว! 📚 +15"); } }
     else await say("ไว้ค่อยว่ากัน");
   }
 }
@@ -1815,7 +1869,7 @@ function monCard(m) {
   </div></div>`;
 }
 async function catchEvent(w) {
-  const sp = w.sp, D = SPECIES[sp], m = makeMonster(sp, false);
+  const sp = w.sp, D = SPECIES[sp], m = makeMonster(sp, S.know >= KNOW_SEE);  // ความรู้ถึง 30 → เห็นค่าพลังเลย
   const p = scene({ e: D.e, img: "m-" + sp, name: D.name + " ตัวป่า", sub: "ชนิด" + TYPE_TH[D.type] }); Sound.appear(); anim("orb", "pulse");
   const extra = $("#extra", p);
   extra.innerHTML = monCard(m);
@@ -1827,7 +1881,7 @@ async function catchEvent(w) {
       { k: "pass", label: "👋 ปล่อยไป" },
     ]);
     if (c.k === "study") {
-      m.known = true; S.stats.studied++; S.mp = clamp(S.mp - 2, 0, 100); extra.innerHTML = monCard(m); sceneStats();
+      m.known = true; S.stats.studied++; S.mp = clamp(S.mp - 2, 0, 100); learn(2); extra.innerHTML = monCard(m); sceneStats();
       if (m.scam) { Sound.bad(); await say("⚠️ ไม่มีใบอนุญาต ไม่มีธุรกิจจริง = แชร์ลูกโซ่!"); }
       else await say(m.badTrait ? `ระวัง! ตัวนี้${m.trait}` : `★${m.star} · ${m.trait}`);
       continue;
@@ -1918,6 +1972,7 @@ function report(moved) {
         </tbody></table></div>
       </div>
       ${S.moves.some((x) => x.gone) ? `<p class="hint red">🦄 ยูนิคอร์นหายไปพร้อมเงิน = แชร์ลูกโซ่</p>` : ""}
+      ${needWantCard()}
       <div class="card"><b style="font-family:var(--font-head)">👛 เงินไปไหน</b><div class="lines" style="margin-top:4px">
         <div><span>💼 เงินเดือน</span><b class="up">+${baht(S.income)}</b></div>
         ${earn.map(([n, v]) => `<div><span>${n}</span><b class="up">+${baht(v)}</b></div>`).join("")}
@@ -1937,10 +1992,29 @@ function report(moved) {
     $("#nx", p).onclick = () => { Sound.blip(); resolve(); };
   });
 }
+// ไอเดีย #36 ของจำเป็น vs ของอยากได้ (อยากได้ = เที่ยว ช้อป กาแฟ ของที่เพิ่มความสุข)
+function goalCard() {
+  const G = GOALS[S.goal], tgt = goalTarget(), pct = clamp(S.save / tgt * 100, 0, 100);
+  return `<div class="card"><b style="font-family:var(--font-head)">${G.e} ${G.n}</b>
+    <div class="bar mp" style="margin:6px 0"><i style="width:${pct}%;background:#11914a"></i></div>
+    <div class="lines"><div><span>🐷 เงินเก็บตอนนี้</span><b>${baht(S.save)}</b></div><div><span>🎯 เป้า</span><b>${baht(tgt)}</b></div></div></div>`;
+}
+function needWant(C) {
+  const want = C.fun || 0, need = (C.food || 0) + (C.bills || 0) + (C.emerg || 0) + (C.health || 0) + (C.other || 0);
+  return { need, want, pct: need + want > 0 ? Math.round(want / (need + want) * 100) : 0 };
+}
+function needWantCard() {
+  const { need, want, pct } = needWant(S.cat);
+  if (need + want < 1) return "";
+  return `<div class="card"><b style="font-family:var(--font-head)">🧺 จำเป็น vs 🎁 อยากได้</b>
+    <div class="nwbar"><i style="width:${100 - pct}%"></i><b style="width:${pct}%"></b></div>
+    <div class="lines"><div><span>🧺 จำเป็น (กิน บิล สุขภาพ)</span><b>${baht(need)}</b></div><div><span>🎁 อยากได้ (เที่ยว ช้อป ของชอบ)</span><b>${baht(want)} · ${pct}%</b></div></div></div>`;
+}
 function ending() {
   mode = "busy"; S.over = true;
   const inv = invTotal(), net = netWorth(), ratio = net / Math.max(1, S.incomeTotal);
-  const score = Math.max(0, Math.round((ratio * 1000 + S.mp * 4 + S.questsDone * 6) * (0.6 + 0.4 * S.mp / 100)));
+  const G = GOALS[S.goal], tgt = goalTarget(), won = S.save >= tgt;
+  const score = Math.max(0, Math.round(((ratio * 1000 + S.mp * 4 + S.questsDone * 6) * (0.6 + 0.4 * S.mp / 100) + (won ? 120 : 0) + S.know) * (LEVELS[S.level] || LEVELS.normal).score));
   const rank = score >= 700 ? "ปรมาจารย์การเงิน" : score >= 520 ? "จอมจัดงบ" : score >= 350 ? "นักวางแผนฝึกหัด" : "มือใหม่หัดออม";
   const best = store.get(BEST_KEY, 0), isBest = score > best; if (isBest) store.set(BEST_KEY, score);
   const dex = store.get(DEX_KEY, []);
@@ -1955,8 +2029,11 @@ function ending() {
   if (S.stats.scamLost > 0) L.push(`🦄 เสียให้แชร์ลูกโซ่ ${baht(S.stats.scamLost)} · การันตีสูง = ระวัง`);
   if (S.stats.soldInCrisis > 0) L.push("🏃 ขายตอนวิกฤต = ขาดทุนจริง");
   if (S.jobsDone) L.push(`🧰 ทำงานเสริม ${S.jobsDone} ครั้ง`);
+  if (S.know) L.push(`📚 ความรู้ ${Math.round(S.know)} · งานเสริมได้เพิ่ม ${Math.round((knowBonus() - 1) * 100)}%`);
+  { const nw = needWant(S.allCat || S.cat); if (nw.need + nw.want > 0) L.push(`🎁 ใช้กับของอยากได้ ${nw.pct}% ของรายจ่าย`); }
   const p = modal(`
-    <div class="head"><div class="badge">🏆</div><div><h2>จบ ${S.months} เดือน</h2><div class="rank">${rank}</div></div></div>
+    <div class="head"><div class="badge">🏆</div><div><h2>จบ ${S.months} เดือน · ${(LEVELS[S.level] || LEVELS.normal).e} ${(LEVELS[S.level] || LEVELS.normal).n}</h2><div class="rank">${rank}</div></div></div>
+    <div class="card story ${won ? "won" : ""}"><b>${G.e} ${G.n}</b><p>${won ? G.win : G.lose}</p><small>เงินเก็บ ${baht(S.save)} / เป้า ${baht(tgt)}</small></div>
     <div class="card" style="text-align:center"><div class="big">${score.toLocaleString("en-US")}</div><div class="muted">คะแนน${isBest ? " · สถิติใหม่!" : " · สถิติ " + best.toLocaleString("en-US")}</div></div>
     <div class="card grid2">
       <div><span class="muted">รายได้รวม</span><br><b class="num">${baht(S.incomeTotal)}</b></div><div><span class="muted">สุทธิ</span><br><b class="num">${baht(net)}</b></div>
