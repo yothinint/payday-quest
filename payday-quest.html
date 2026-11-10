@@ -347,12 +347,10 @@ function loadImages() {
 }
 const CFG = { monthSec: 180, days: 15 };  // 15 game days (12 s each) — calmer; the total is never shown to the player
 const MEALS_PER_DAY = 3.6;
-// ไอเดีย #35 ระดับความยาก
-const LEVELS = {
-  easy: { n: "ง่าย", e: "🌱", d: "เวลาเยอะ บิลน้อย", sec: 240, bills: [0, 1], dueAdd: 1, cd: 1.3, score: 0.9 },
-  normal: { n: "ปกติ", e: "⭐", d: "สมดุล", sec: 180, bills: [1, 2], dueAdd: 0, cd: 1, score: 1 },
-  hard: { n: "ยาก", e: "🔥", d: "เวลาน้อย บิลเยอะ", sec: 150, bills: [2, 3], dueAdd: -1, cd: 0.8, score: 1.25 },
-};
+// ระดับเดียว เน้นสมจริง (ผู้ใช้ให้เอาตัวเลือกง่าย/ปกติ/ยากออก)
+const LEVELS = { normal: { sec: 180, dueAdd: 0, cd: 1, score: 1 } };
+// บิลไม่คาดฝันต่อเดือนแบบชีวิตจริง: บางเดือนไม่มี (25%) ส่วนใหญ่ 1 ใบ (50%) บางเดือนซวย 2 ใบ (25%)
+const surpriseBills = () => { const r = Math.random(); return r < 0.25 ? 0 : r < 0.75 ? 1 : 2; };
 // ไอเดีย #34 เนื้อเรื่อง: เลือกเป้าหมายชีวิต แล้วเก็บเงินให้ถึง
 const GOALS = {
   trip: { e: "✈️", n: "เที่ยวต่างประเทศครั้งแรก", pct: 0.6, who: "แก๊งเพื่อน",
@@ -971,7 +969,7 @@ function buildSchedule() {
   sc.push({ day: 1, kind: "forced", q: { id: "rent", e: "🏠", title: "ค่าเช่าห้อง", text: "ถึงรอบจ่ายค่าเช่าแล้ว", to: "home", cost: rent, cat: "bills" } });
   sc.push({ day: rint(3, 5), kind: "forced", q: { id: "util", e: "💡", title: "ค่าน้ำค่าไฟ", text: S.costUp ? "ค่าไฟแพงขึ้นเดือนนี้" : "บิลเดือนนี้มาแล้ว", to: "store", cost: util, cat: "bills" } });
   sc.push({ day: rint(6, 8), kind: "forced", q: { id: "tel", e: "📶", title: "ค่าโทรศัพท์ + เน็ตบ้าน", text: "ถึงรอบบิลรายเดือน", to: "phone", cost: tel, cat: "bills" } });
-  const LV = LEVELS[S.level] || LEVELS.normal, nBills = rint(LV.bills[0], LV.bills[1]);
+  const nBills = surpriseBills();
   for (let i = 0; i < nBills; i++) {
     const ev = drawEvent("bill"); if (!ev) break;
     let cost = Math.round(S.income * rand(ev.cost[0], ev.cost[1]));
@@ -1542,8 +1540,8 @@ function howto() {
   $("#go", p).onclick = () => { Sound.blip(); setup(); };
 }
 function setup() {
-  let cls = store.get("pq_cls", "office"), starter = "wolf", months = store.get("pq_months", 3), level = store.get("pq_level", "normal"), goal = store.get("pq_goal", "trip");
-  if (!LEVELS[level]) level = "normal"; if (!GOALS[goal]) goal = "trip";
+  let cls = store.get("pq_cls", "office"), starter = "wolf", months = store.get("pq_months", 3), goal = store.get("pq_goal", "trip");
+  if (!GOALS[goal]) goal = "trip";
   const p = modal(`
     <div class="head"><div class="badge">🧑</div><h2>สร้างตัวละคร</h2></div>
     <label class="field" for="nm">ชื่อเล่น<input type="text" id="nm" maxlength="16" placeholder="เช่น บีม" value="${esc(store.get("pq_name", ""))}"></label>
@@ -1551,8 +1549,6 @@ function setup() {
     <div class="chips">${[15000, 25000, 35000, 50000].map((v) => `<button class="btn" data-sal="${v}">${v.toLocaleString("en-US")}</button>`).join("")}</div>
     <div class="field">เล่นกี่เดือน</div>
     <div class="chips" id="mo">${[3, 6].map((v) => `<button class="btn" data-mo="${v}" aria-pressed="${v === months}">${v} เดือน (~${v * 3} นาที)</button>`).join("")}</div>
-    <div class="field">ความยาก</div>
-    <div class="chips" id="lv">${Object.entries(LEVELS).map(([k, l]) => `<button class="btn" data-lv="${k}" aria-pressed="${k === level}">${l.e} ${l.n}<br><small>${l.d}</small></button>`).join("")}</div>
     <div class="field">เป้าหมายของเรื่อง</div>
     <div class="picks" id="gl" style="grid-template-columns:1fr">${Object.entries(GOALS).map(([k, g]) => `<button class="pick" data-k="${k}" aria-pressed="${k === goal}"><span class="ic" aria-hidden="true">${g.e}</span><span><b>${g.n}</b><span class="d">เก็บเงินให้ถึงเป้าก่อนจบเกม</span></span></button>`).join("")}</div>
     <div class="field">อาชีพ</div>
@@ -1566,15 +1562,14 @@ function setup() {
   const group = (id, set) => p.querySelectorAll(`#${id} .pick`).forEach((x) => (x.onclick = () => {
     p.querySelectorAll(`#${id} .pick`).forEach((y) => y.setAttribute("aria-pressed", "false")); x.setAttribute("aria-pressed", "true"); set(x.dataset.k); Sound.blip(); }));
   group("cls", (k) => (cls = k)); group("st", (k) => (starter = k)); group("gl", (k) => (goal = k));
-  p.querySelectorAll("[data-lv]").forEach((x) => (x.onclick = () => { level = x.dataset.lv; p.querySelectorAll("[data-lv]").forEach((y) => y.setAttribute("aria-pressed", String(y === x))); Sound.blip(); }));
   $("#start", p).onclick = () => {
     const sal = Math.round(+$("#sal").value);
     if (!(sal >= 8000 && sal <= 300000)) { const e = $("#err"); e.hidden = false; e.textContent = "ใส่เงินเดือนระหว่าง 8,000 ถึง 300,000 บาท"; return; }
     const name = ($("#nm").value || "นักผจญภัย").trim().slice(0, 16);
     store.set("pq_name", name); store.set("pq_salary", sal); store.set("pq_cls", cls); store.set("pq_months", months);
-    store.set("pq_level", level); store.set("pq_goal", goal);
-    CFG.monthSec = LEVELS[level].sec;
-    S = newState(name, sal, cls, months); S.level = level; S.goal = goal;
+    store.set("pq_goal", goal);
+    CFG.monthSec = LEVELS.normal.sec;
+    S = newState(name, sal, cls, months); S.goal = goal;
     S.team.push(makeMonster(starter, true)); dexAdd(starter);
     Sound.appear(); run(startMonth);
   };
@@ -2032,7 +2027,7 @@ function ending() {
   if (S.know) L.push(`📚 ความรู้ ${Math.round(S.know)} · งานเสริมได้เพิ่ม ${Math.round((knowBonus() - 1) * 100)}%`);
   { const nw = needWant(S.allCat || S.cat); if (nw.need + nw.want > 0) L.push(`🎁 ใช้กับของอยากได้ ${nw.pct}% ของรายจ่าย`); }
   const p = modal(`
-    <div class="head"><div class="badge">🏆</div><div><h2>จบ ${S.months} เดือน · ${(LEVELS[S.level] || LEVELS.normal).e} ${(LEVELS[S.level] || LEVELS.normal).n}</h2><div class="rank">${rank}</div></div></div>
+    <div class="head"><div class="badge">🏆</div><div><h2>จบ ${S.months} เดือน</h2><div class="rank">${rank}</div></div></div>
     <div class="card story ${won ? "won" : ""}"><b>${G.e} ${G.n}</b><p>${won ? G.win : G.lose}</p><small>เงินเก็บ ${baht(S.save)} / เป้า ${baht(tgt)}</small></div>
     <div class="card" style="text-align:center"><div class="big">${score.toLocaleString("en-US")}</div><div class="muted">คะแนน${isBest ? " · สถิติใหม่!" : " · สถิติ " + best.toLocaleString("en-US")}</div></div>
     <div class="card grid2">
